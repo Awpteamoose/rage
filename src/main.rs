@@ -91,21 +91,19 @@ lazy_static::lazy_static! {
 }
 
 #[derive(Debug)]
-enum Prop {
-	Number(i32),
-	String(String),
-}
-
-#[derive(Debug)]
 struct Div {
 	children: Vec<Box<dyn Component>>,
-	props: HashMap<String, Prop>,
+	props: HashMap<String, String>,
 }
 
 trait Component: Send + Sync + std::fmt::Debug {
 	fn render(&mut self) -> String;
-	fn children(&mut self) -> &mut Vec<Box<dyn Component>>;
-	fn props(&mut self) -> &mut HashMap<String, Prop>;
+	fn children(&mut self) -> &mut Vec<Box<dyn Component>> {
+		unimplemented!()
+	}
+	fn props(&mut self) -> &mut HashMap<String, String> {
+		unimplemented!()
+	}
 }
 
 fn hash(s: &str) -> String {
@@ -127,12 +125,12 @@ impl<CMP: Component, F: Sync + Send + Fn(&CMP) -> String> Component for Styled<C
 	fn render(&mut self) -> String {
 		let css = (self.get_css)(&self.inner);
 		let class = hash(&css);
-		let _ = self.props().insert(String::from("class"), Prop::String(class.clone()));
+		let _ = self.props().insert(String::from("class"), class.clone());
 		let _ = STATE.lock().unwrap().styles.insert(class, css);
 		self.inner.render()
 	}
 	fn children(&mut self) -> &mut Vec<Box<dyn Component>> { self.inner.children() }
-	fn props(&mut self) -> &mut HashMap<String, Prop> { self.inner.props() }
+	fn props(&mut self) -> &mut HashMap<String, String> { self.inner.props() }
 }
 
 fn styled<CMP: Component, F: Sync + Send + Fn(&CMP) -> String>(cmp: CMP, get_css: F) -> Styled<CMP, F> {
@@ -144,27 +142,20 @@ impl Component for Div {
 		STATE.lock().unwrap().update(|s| s.some_value += 1);
 		let children = self.children.iter_mut().fold(String::new(), |acc, c| acc + &c.render());
 		let props = self.props.iter().fold(String::new(), |acc, (name, value)| {
-			acc + &format!("{}={}", name, &match value {
-				Prop::Number(x) => x.to_string(),
-				Prop::String(x) => format!(r#""{}""#, x),
-			})
+			acc + &format!(r#"{}="{}""#, name, value)
 		});
 		format!("<div {}>{}</div>", &props, &children)
 	}
 	fn children(&mut self) -> &mut Vec<Box<dyn Component>> { &mut self.children }
-	fn props(&mut self) -> &mut HashMap<String, Prop> { &mut self.props }
+	fn props(&mut self) -> &mut HashMap<String, String> { &mut self.props }
 }
 
 impl Component for String {
 	fn render(&mut self) -> String { self.clone() }
-	fn children(&mut self) -> &mut Vec<Box<dyn Component>> { unimplemented!() }
-	fn props(&mut self) -> &mut HashMap<String, Prop> { unimplemented!() }
 }
 
 impl Component for &str {
 	fn render(&mut self) -> String { String::from(*self) }
-	fn children(&mut self) -> &mut Vec<Box<dyn Component>> { unimplemented!() }
-	fn props(&mut self) -> &mut HashMap<String, Prop> { unimplemented!() }
 }
 
 fn main() {
