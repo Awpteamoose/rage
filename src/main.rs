@@ -133,9 +133,9 @@ impl<CMP: Component, F: Sync + Send + Fn(&CMP) -> String> Component for Styled<C
 	fn props(&mut self) -> &mut HashMap<String, String> { self.inner.props() }
 }
 
-fn styled<CMP: Component, F: Sync + Send + Fn(&CMP) -> String>(cmp: CMP, get_css: F) -> Styled<CMP, F> {
-	Styled { inner: cmp, get_css }
-}
+// fn styled<CMP: Component, F: Sync + Send + Fn(&CMP) -> String>(cmp: CMP, get_css: F) -> Styled<CMP, F> {
+//     Styled { inner: cmp, get_css }
+// }
 
 impl Component for Div {
 	fn render(&mut self) -> String {
@@ -165,10 +165,13 @@ fn main() {
 	};
 	println!("{}", test_div1.render());
 
-	let mut test_div2 = styled(Div {
-		props: HashMap::new(),
-		children: vec![Box::new("inner pidor")],
-	}, |_| format!("width: {}px", STATE.lock().unwrap().state.some_value));
+	let mut test_div2 = Styled {
+		inner: Div {
+			props: HashMap::new(),
+			children: vec![Box::new("inner pidor")],
+		},
+		get_css: |_| format!("width: {}px", STATE.lock().unwrap().state.some_value),
+	};
 	println!("{}", test_div2.render());
 
 	let mut test_div3 = Div {
