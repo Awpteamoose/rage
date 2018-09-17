@@ -58,14 +58,12 @@ use std::{
 		hash_map::DefaultHasher,
 	},
 	hash::Hasher,
-	sync::{
-		Mutex,
-		Arc,
-	},
+	cell::RefCell,
+	rc::Rc,
 };
 use stdweb::{
-	js, _js_impl, __js_raw_asm,
-	console, __internal_console_unsafe,
+	// js, _js_impl, __js_raw_asm,
+	// console, __internal_console_unsafe,
 	web::{
 		document,
 		HtmlElement,
@@ -85,8 +83,8 @@ struct State {
 struct StateLock {
 	root: HtmlElement,
 	style: HtmlElement,
-	mount: Vec<Box<dyn Component>>,
-	styles: HashMap<String, String>,
+	mount: Rc<RefCell<Vec<Box<dyn Component>>>>,
+	styles: Rc<RefCell<HashMap<String, String>>>,
 	state: State,
 }
 
@@ -95,25 +93,21 @@ impl Default for StateLock {
 		Self {
 			root: HtmlElement::try_from(document().create_element("div").unwrap()).unwrap(),
 			style: HtmlElement::try_from(document().create_element("style").unwrap()).unwrap(),
-			mount: Vec::new(),
-			styles: HashMap::new(),
+			mount: Rc::new(RefCell::new(Vec::new())),
+			styles: Rc::new(RefCell::new(HashMap::new())),
 			state: State::default(),
 		}
 	}
 }
 
 impl StateLock {
-	fn update(&mut self, f: impl Fn(&mut State)) {
-		f(&mut self.state);
-		update_dom();
+	fn update(arc: &mut StateRc, f: impl Fn(&mut State)) {
+		f(&mut arc.borrow_mut().state);
+		update_dom(arc);
 	}
 }
 
-type StateArc = Arc<Mutex<StateLock>>;
-
-lazy_static::lazy_static! {
-	static ref STATE: StateArc = StateArc::default();
-}
+type StateRc = Rc<RefCell<StateLock>>;
 
 struct Div {
 	children: Vec<Box<dyn Component>>,
@@ -121,7 +115,7 @@ struct Div {
 }
 
 trait Component: Send + Sync {
-	fn render(&mut self) -> Node;
+	fn render(&mut self, _: StateRc) -> Node;
 	fn children(&mut self) -> &mut Vec<Box<dyn Component>> { unimplemented!() }
 	fn attributes(&mut self) -> &mut HashMap<String, String> { unimplemented!() }
 }
@@ -132,39 +126,40 @@ fn hash(s: &str) -> String {
 	hasher.finish().to_string()
 }
 
-struct Styled<CMP: Component, F: Sync + Send + Fn(&CMP) -> String> {
+struct Styled<CMP: Component, F: Sync + Send + Fn(&CMP, &State) -> String> {
 	inner: CMP,
 	get_css: F,
 }
 
-impl<CMP: Component, F: Sync + Send + Fn(&CMP) -> String> Component for Styled<CMP, F> {
-	fn render(&mut self) -> Node {
-		let css = (self.get_css)(&self.inner);
-		let class = hash(&css);
-		let _ = self.attributes().insert(String::from("class"), class.clone());
-		let _ = STATE.lock().unwrap().styles.insert(class, css);
-		self.inner.render()
+impl<CMP: Component, F: Sync + Send + Fn(&CMP, &State) -> String> Component for Styled<CMP, F> {
+	fn render(&mut self, state: StateRc) -> Node {
+		{
+			let css = (self.get_css)(&self.inner, &state.borrow().state);
+			let class = hash(&css);
+			let _ = self.attributes().insert(String::from("class"), class.clone());
+			let _ = state.borrow().styles.borrow_mut().insert(class, css);
+		}
+		self.inner.render(state)
 	}
 	fn children(&mut self) -> &mut Vec<Box<dyn Component>> { self.inner.children() }
 	fn attributes(&mut self) -> &mut HashMap<String, String> { self.inner.attributes() }
 }
 
 impl Component for Div {
-	fn render(&mut self) -> Node {
+	fn render(&mut self, mut state: StateRc) -> Node {
 		let div = document().create_element("div").unwrap();
 
 		for child in self.children.iter_mut() {
-			div.append_child(&child.render());
+			div.append_child(&child.render(Rc::clone(&state)));
 		}
 
 		for (name, value) in self.attributes.iter() {
 			div.set_attribute(name, value).unwrap();
 		}
 
-		let _handler = div.add_event_listener(|_e: event::ClickEvent| {
-			STATE.lock().unwrap().update(|s| {
+		let _handler = div.add_event_listener(move |_e: event::ClickEvent| {
+			StateLock::update(&mut state, |s| {
 				s.some_value += 1;
-				console!(log, format!("{:?}", s));
 			});
 		});
 
@@ -175,61 +170,72 @@ impl Component for Div {
 }
 
 impl Component for String {
-	fn render(&mut self) -> Node {
+	fn render(&mut self, _state: StateRc) -> Node {
 		document().create_text_node(&self).into()
 	}
 }
 
 impl Component for &str {
-	fn render(&mut self) -> Node {
+	fn render(&mut self, _state: StateRc) -> Node {
 		document().create_text_node(&self.to_string()).into()
 	}
 }
 
-impl<T: ToString + Send + Sync, F: Fn() -> T + Send + Sync> Component for F {
-	fn render(&mut self) -> Node {
-		document().create_text_node(&self().to_string()).into()
+impl<T: ToString + Send + Sync, F: Fn(StateRc) -> T + Send + Sync> Component for F {
+	fn render(&mut self, state: StateRc) -> Node {
+		document().create_text_node(&self(state).to_string()).into()
 	}
 }
 
-fn update_dom() {
-	let StateLock { mount, style, root, styles, .. } = &mut STATE.lock().unwrap() as &mut StateLock;
+fn update_dom(state: &StateRc) {
+	let mut nodes = Vec::new();
+	for cmp in state.borrow().mount.borrow_mut().iter_mut() {
+		nodes.push(cmp.render(Rc::clone(&state)));
+	}
+	let StateLock { style, root, styles, .. } = &mut state.borrow_mut() as &mut StateLock;
 
-	styles.clear();
+	styles.borrow_mut().clear();
 	root.set_text_content("");
 
-	for cmp in mount.iter_mut() {
-		root.append_child(&cmp.render());
-	}
-
-	style.set_text_content(&styles.iter().fold(String::new(), |acc, (class, style)| {
+	style.set_text_content(&styles.borrow_mut().iter().fold(String::new(), |acc, (class, style)| {
 		acc + &format!(".{} {{ {} }}", class, style)
 	}));
+
+	for node in nodes {
+		root.append_child(&node);
+	}
 }
 
 fn main() {
-	let test_div2 = Styled {
-		inner: Div {
+	let state: StateRc = StateRc::default();
+	{
+		let state_write = &mut state.borrow_mut() as &mut StateLock;
+
+		let test_div2 = Styled {
+			inner: Div {
+				attributes: HashMap::new(),
+				children: vec![Box::new("pidoir")],
+			},
+			get_css: |_, state: &State| {
+				format!("width: {}px", state.some_value)
+			},
+		};
+
+		let test_div3 = Div {
 			attributes: HashMap::new(),
-			children: vec![Box::new("pidoir")],
-		},
-		get_css: |_| format!("width: {}px", STATE.lock().unwrap().state.some_value),
-	};
+			children: vec![Box::new(test_div2)],
+		};
 
-	let test_div3 = Div {
-		attributes: HashMap::new(),
-		children: vec![Box::new(test_div2)],
-	};
+		let test_div = Div {
+			attributes: HashMap::new(),
+			children: vec![Box::new(test_div3), Box::new(|state: StateRc| format!("more pidoir {}", state.borrow().state.some_value))],
+		};
 
-	let test_div = Div {
-		attributes: HashMap::new(),
-		children: vec![Box::new(test_div3), Box::new(|| format!("more pidoir {}", STATE.lock().unwrap().state.some_value))],
-	};
+		state_write.mount.borrow_mut().push(Box::new(test_div));
 
-	STATE.lock().unwrap().mount.push(Box::new(test_div));
+		document().head().unwrap().append_child(&state_write.style);
+		document().body().unwrap().append_child(&state_write.root);
+	}
 
-	document().head().unwrap().append_child(&(*STATE.lock().unwrap()).style);
-	document().body().unwrap().append_child(&(*STATE.lock().unwrap()).root);
-
-	update_dom();
+	update_dom(&state);
 }
