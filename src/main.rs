@@ -49,7 +49,7 @@
 	clippy::unimplemented,
 ))]
 #![allow(clippy::result_unwrap_used, clippy::option_unwrap_used)]
-#![feature(try_from, try_trait, never_type, tool_lints)]
+#![feature(try_from, try_trait, never_type, tool_lints, set_stdio)]
 #![recursion_limit = "128"]
 
 use std::{
@@ -63,6 +63,18 @@ use std::{
 		Arc,
 	},
 };
+use stdweb::{
+	js, _js_impl, __js_raw_asm,
+	console, __internal_console_unsafe,
+	web::{
+		document,
+		HtmlElement,
+		event,
+		Node,
+	},
+	unstable::TryFrom,
+	traits::*,
+};
 // use maplit::*;
 
 #[derive(Default, Debug)]
@@ -70,40 +82,48 @@ struct State {
 	some_value: i32,
 }
 
-#[derive(Default, Debug)]
 struct StateLock {
+	root: HtmlElement,
+	style: HtmlElement,
+	mount: Vec<Box<dyn Component>>,
 	styles: HashMap<String, String>,
 	state: State,
-	dirty: bool,
+}
+
+impl Default for StateLock {
+	fn default() -> Self {
+		Self {
+			root: HtmlElement::try_from(document().create_element("div").unwrap()).unwrap(),
+			style: HtmlElement::try_from(document().create_element("style").unwrap()).unwrap(),
+			mount: Vec::new(),
+			styles: HashMap::new(),
+			state: State::default(),
+		}
+	}
 }
 
 impl StateLock {
 	fn update(&mut self, f: impl Fn(&mut State)) {
 		f(&mut self.state);
-		self.dirty = true;
+		update_dom();
 	}
 }
 
 type StateArc = Arc<Mutex<StateLock>>;
 
 lazy_static::lazy_static! {
-	static ref STATE: StateArc = Arc::new(Mutex::new(StateLock::default()));
+	static ref STATE: StateArc = StateArc::default();
 }
 
-#[derive(Debug)]
 struct Div {
 	children: Vec<Box<dyn Component>>,
-	props: HashMap<String, String>,
+	attributes: HashMap<String, String>,
 }
 
-trait Component: Send + Sync + std::fmt::Debug {
-	fn render(&mut self) -> String;
-	fn children(&mut self) -> &mut Vec<Box<dyn Component>> {
-		unimplemented!()
-	}
-	fn props(&mut self) -> &mut HashMap<String, String> {
-		unimplemented!()
-	}
+trait Component: Send + Sync {
+	fn render(&mut self) -> Node;
+	fn children(&mut self) -> &mut Vec<Box<dyn Component>> { unimplemented!() }
+	fn attributes(&mut self) -> &mut HashMap<String, String> { unimplemented!() }
 }
 
 fn hash(s: &str) -> String {
@@ -117,68 +137,99 @@ struct Styled<CMP: Component, F: Sync + Send + Fn(&CMP) -> String> {
 	get_css: F,
 }
 
-impl<CMP: Component, F: Sync + Send + Fn(&CMP) -> String> std::fmt::Debug for Styled<CMP, F> {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { self.inner.fmt(f) }
-}
-
 impl<CMP: Component, F: Sync + Send + Fn(&CMP) -> String> Component for Styled<CMP, F> {
-	fn render(&mut self) -> String {
+	fn render(&mut self) -> Node {
 		let css = (self.get_css)(&self.inner);
 		let class = hash(&css);
-		let _ = self.props().insert(String::from("class"), class.clone());
+		let _ = self.attributes().insert(String::from("class"), class.clone());
 		let _ = STATE.lock().unwrap().styles.insert(class, css);
 		self.inner.render()
 	}
 	fn children(&mut self) -> &mut Vec<Box<dyn Component>> { self.inner.children() }
-	fn props(&mut self) -> &mut HashMap<String, String> { self.inner.props() }
+	fn attributes(&mut self) -> &mut HashMap<String, String> { self.inner.attributes() }
 }
 
-// fn styled<CMP: Component, F: Sync + Send + Fn(&CMP) -> String>(cmp: CMP, get_css: F) -> Styled<CMP, F> {
-//     Styled { inner: cmp, get_css }
-// }
-
 impl Component for Div {
-	fn render(&mut self) -> String {
-		STATE.lock().unwrap().update(|s| s.some_value += 1);
-		let children = self.children.iter_mut().fold(String::new(), |acc, c| acc + &c.render());
-		let props = self.props.iter().fold(String::new(), |acc, (name, value)| {
-			acc + &format!(r#"{}="{}""#, name, value)
+	fn render(&mut self) -> Node {
+		let div = document().create_element("div").unwrap();
+
+		for child in self.children.iter_mut() {
+			div.append_child(&child.render());
+		}
+
+		for (name, value) in self.attributes.iter() {
+			div.set_attribute(name, value).unwrap();
+		}
+
+		let _handler = div.add_event_listener(|_e: event::ClickEvent| {
+			STATE.lock().unwrap().update(|s| {
+				s.some_value += 1;
+				console!(log, format!("{:?}", s));
+			});
 		});
-		format!("<div {}>{}</div>", &props, &children)
+
+		div.into()
 	}
 	fn children(&mut self) -> &mut Vec<Box<dyn Component>> { &mut self.children }
-	fn props(&mut self) -> &mut HashMap<String, String> { &mut self.props }
+	fn attributes(&mut self) -> &mut HashMap<String, String> { &mut self.attributes }
 }
 
 impl Component for String {
-	fn render(&mut self) -> String { self.clone() }
+	fn render(&mut self) -> Node {
+		document().create_text_node(&self).into()
+	}
 }
 
 impl Component for &str {
-	fn render(&mut self) -> String { String::from(*self) }
+	fn render(&mut self) -> Node {
+		document().create_text_node(&self.to_string()).into()
+	}
+}
+
+impl<T: ToString + Send + Sync, F: Fn() -> T + Send + Sync> Component for F {
+	fn render(&mut self) -> Node {
+		document().create_text_node(&self().to_string()).into()
+	}
+}
+
+fn update_dom() {
+	let StateLock { mount, style, root, styles, .. } = &mut STATE.lock().unwrap() as &mut StateLock;
+
+	styles.clear();
+	root.set_text_content("");
+
+	for cmp in mount.iter_mut() {
+		root.append_child(&cmp.render());
+	}
+
+	style.set_text_content(&styles.iter().fold(String::new(), |acc, (class, style)| {
+		acc + &format!(".{} {{ {} }}", class, style)
+	}));
 }
 
 fn main() {
-	let mut test_div1 = Div {
-		props: HashMap::new(),
-		children: Vec::new(),
-	};
-	println!("{}", test_div1.render());
-
-	let mut test_div2 = Styled {
+	let test_div2 = Styled {
 		inner: Div {
-			props: HashMap::new(),
-			children: vec![Box::new("inner pidor")],
+			attributes: HashMap::new(),
+			children: vec![Box::new("pidoir")],
 		},
 		get_css: |_| format!("width: {}px", STATE.lock().unwrap().state.some_value),
 	};
-	println!("{}", test_div2.render());
 
-	let mut test_div3 = Div {
-		props: HashMap::new(),
+	let test_div3 = Div {
+		attributes: HashMap::new(),
 		children: vec![Box::new(test_div2)],
 	};
-	println!("{}", test_div3.render());
 
-	println!("{:?}", *STATE.lock().unwrap());
+	let test_div = Div {
+		attributes: HashMap::new(),
+		children: vec![Box::new(test_div3), Box::new(|| format!("more pidoir {}", STATE.lock().unwrap().state.some_value))],
+	};
+
+	STATE.lock().unwrap().mount.push(Box::new(test_div));
+
+	document().head().unwrap().append_child(&(*STATE.lock().unwrap()).style);
+	document().body().unwrap().append_child(&(*STATE.lock().unwrap()).root);
+
+	update_dom();
 }
