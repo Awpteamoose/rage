@@ -84,10 +84,10 @@ impl StateLock {
 	}
 }
 
-type Lock = Arc<Mutex<StateLock>>;
+type StateArc = Arc<Mutex<StateLock>>;
 
 lazy_static::lazy_static! {
-	static ref STATE_LOCK: Lock = Arc::new(Mutex::new(StateLock::default()));
+	static ref STATE: StateArc = Arc::new(Mutex::new(StateLock::default()));
 }
 
 #[derive(Debug)]
@@ -98,13 +98,14 @@ enum Prop {
 
 #[derive(Debug)]
 struct Div {
-	state: Lock,
-	children: Vec<Div>,
+	children: Vec<Box<dyn Component>>,
 	props: HashMap<String, Prop>,
 }
 
-trait Component {
-	fn render(&self) -> String;
+trait Component: Send + Sync + std::fmt::Debug {
+	fn render(&mut self) -> String;
+	fn children(&mut self) -> &mut Vec<Box<dyn Component>>;
+	fn props(&mut self) -> &mut HashMap<String, Prop>;
 }
 
 fn hash(s: &str) -> String {
@@ -113,18 +114,35 @@ fn hash(s: &str) -> String {
 	hasher.finish().to_string()
 }
 
-fn styled(mut cmp: Div, get_css: impl Fn(&Div) -> String) -> Div {
-	let css = get_css(&cmp);
-	let class = hash(&css);
-	let _ = cmp.props.insert(String::from("class"), Prop::String(class.clone()));
-	let _ = cmp.state.lock().unwrap().styles.insert(class, css);
-	cmp
+struct Styled<CMP: Component, F: Sync + Send + Fn(&CMP) -> String> {
+	inner: CMP,
+	get_css: F,
+}
+
+impl<CMP: Component, F: Sync + Send + Fn(&CMP) -> String> std::fmt::Debug for Styled<CMP, F> {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { self.inner.fmt(f) }
+}
+
+impl<CMP: Component, F: Sync + Send + Fn(&CMP) -> String> Component for Styled<CMP, F> {
+	fn render(&mut self) -> String {
+		let css = (self.get_css)(&self.inner);
+		let class = hash(&css);
+		let _ = self.props().insert(String::from("class"), Prop::String(class.clone()));
+		let _ = STATE.lock().unwrap().styles.insert(class, css);
+		self.inner.render()
+	}
+	fn children(&mut self) -> &mut Vec<Box<dyn Component>> { self.inner.children() }
+	fn props(&mut self) -> &mut HashMap<String, Prop> { self.inner.props() }
+}
+
+fn styled<CMP: Component, F: Sync + Send + Fn(&CMP) -> String>(cmp: CMP, get_css: F) -> Styled<CMP, F> {
+	Styled { inner: cmp, get_css }
 }
 
 impl Component for Div {
-	fn render(&self) -> String {
-		println!("{}", self.state.lock().unwrap().state.some_value);
-		let children = self.children.iter().fold(String::new(), |acc, c| acc + &c.render());
+	fn render(&mut self) -> String {
+		STATE.lock().unwrap().update(|s| s.some_value += 1);
+		let children = self.children.iter_mut().fold(String::new(), |acc, c| acc + &c.render());
 		let props = self.props.iter().fold(String::new(), |acc, (name, value)| {
 			acc + &format!("{}={}", name, &match value {
 				Prop::Number(x) => x.to_string(),
@@ -133,24 +151,40 @@ impl Component for Div {
 		});
 		format!("<div {}>{}</div>", &props, &children)
 	}
+	fn children(&mut self) -> &mut Vec<Box<dyn Component>> { &mut self.children }
+	fn props(&mut self) -> &mut HashMap<String, Prop> { &mut self.props }
+}
+
+impl Component for String {
+	fn render(&mut self) -> String { self.clone() }
+	fn children(&mut self) -> &mut Vec<Box<dyn Component>> { unimplemented!() }
+	fn props(&mut self) -> &mut HashMap<String, Prop> { unimplemented!() }
+}
+
+impl Component for &str {
+	fn render(&mut self) -> String { String::from(*self) }
+	fn children(&mut self) -> &mut Vec<Box<dyn Component>> { unimplemented!() }
+	fn props(&mut self) -> &mut HashMap<String, Prop> { unimplemented!() }
 }
 
 fn main() {
-	let test_div1 = Div {
-		state: Arc::clone(&STATE_LOCK),
+	let mut test_div1 = Div {
 		props: HashMap::new(),
 		children: Vec::new(),
 	};
 	println!("{}", test_div1.render());
-	{
-		let mut state = STATE_LOCK.lock().unwrap();
-		state.update(|s| s.some_value += 1);
-	}
-	let test_div2 = styled(Div {
-		state: Arc::clone(&STATE_LOCK),
+
+	let mut test_div2 = styled(Div {
 		props: HashMap::new(),
-		children: Vec::new(),
-	}, |cmp| format!("width: {}px", cmp.state.lock().unwrap().state.some_value));
+		children: vec![Box::new("inner pidor")],
+	}, |_| format!("width: {}px", STATE.lock().unwrap().state.some_value));
 	println!("{}", test_div2.render());
-	println!("{:?}", *STATE_LOCK.lock().unwrap());
+
+	let mut test_div3 = Div {
+		props: HashMap::new(),
+		children: vec![Box::new(test_div2)],
+	};
+	println!("{}", test_div3.render());
+
+	println!("{:?}", *STATE.lock().unwrap());
 }
