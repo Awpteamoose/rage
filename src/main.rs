@@ -48,17 +48,22 @@
 	clippy::print_stdout,
 	clippy::unimplemented,
 ))]
+#![allow(clippy::result_unwrap_used, clippy::option_unwrap_used)]
 #![feature(try_from, try_trait, never_type, tool_lints)]
 #![recursion_limit = "128"]
 
 use std::{
-	collections::HashMap,
+	collections::{
+		HashMap,
+		hash_map::DefaultHasher,
+	},
+	hash::Hasher,
 	sync::{
 		Mutex,
 		Arc,
 	},
 };
-use maplit::*;
+// use maplit::*;
 
 #[derive(Default, Debug)]
 struct State {
@@ -67,6 +72,7 @@ struct State {
 
 #[derive(Default, Debug)]
 struct StateLock {
+	styles: HashMap<String, String>,
 	state: State,
 	dirty: bool,
 }
@@ -101,9 +107,17 @@ trait Component {
 	fn render(&self) -> String;
 }
 
-fn styled(mut cmp: Div, css: String) -> Div {
-	// TODO: use css
-	cmp.props.insert(String::from("class"), Prop::String(String::from("poop")));
+fn hash(s: &str) -> String {
+	let mut hasher = DefaultHasher::new();
+	hasher.write(s.as_bytes());
+	hasher.finish().to_string()
+}
+
+fn styled(mut cmp: Div, get_css: impl Fn(&Div) -> String) -> Div {
+	let css = get_css(&cmp);
+	let class = hash(&css);
+	let _ = cmp.props.insert(String::from("class"), Prop::String(class.clone()));
+	let _ = cmp.state.lock().unwrap().styles.insert(class, css);
 	cmp
 }
 
@@ -121,8 +135,6 @@ impl Component for Div {
 	}
 }
 
-// fn styled(div
-
 fn main() {
 	let test_div1 = Div {
 		state: Arc::clone(&STATE_LOCK),
@@ -134,10 +146,11 @@ fn main() {
 		let mut state = STATE_LOCK.lock().unwrap();
 		state.update(|s| s.some_value += 1);
 	}
-	let test_div2 = Div {
+	let test_div2 = styled(Div {
 		state: Arc::clone(&STATE_LOCK),
 		props: HashMap::new(),
 		children: Vec::new(),
-	};
+	}, |cmp| format!("width: {}px", cmp.state.lock().unwrap().state.some_value));
 	println!("{}", test_div2.render());
+	println!("{:?}", *STATE_LOCK.lock().unwrap());
 }
