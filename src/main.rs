@@ -51,6 +51,15 @@
 #![feature(try_from, try_trait, never_type, tool_lints)]
 #![recursion_limit = "128"]
 
+use std::{
+	collections::HashMap,
+	sync::{
+		Mutex,
+		Arc,
+	},
+};
+use maplit::*;
+
 #[derive(Default, Debug)]
 struct State {
 	some_value: i32,
@@ -69,6 +78,12 @@ impl StateLock {
 	}
 }
 
+type Lock = Arc<Mutex<StateLock>>;
+
+lazy_static::lazy_static! {
+	static ref STATE_LOCK: Lock = Arc::new(Mutex::new(StateLock::default()));
+}
+
 #[derive(Debug)]
 enum Prop {
 	Number(i32),
@@ -77,9 +92,9 @@ enum Prop {
 
 #[derive(Debug)]
 struct Div {
+	state: Lock,
 	children: Vec<Div>,
-	props: std::collections::HashMap<String, Prop>,
-	state: StateLock,
+	props: HashMap<String, Prop>,
 }
 
 trait Component {
@@ -94,6 +109,7 @@ fn styled(mut cmp: Div, css: String) -> Div {
 
 impl Component for Div {
 	fn render(&self) -> String {
+		println!("{}", self.state.lock().unwrap().state.some_value);
 		let children = self.children.iter().fold(String::new(), |acc, c| acc + &c.render());
 		let props = self.props.iter().fold(String::new(), |acc, (name, value)| {
 			acc + &format!("{}={}", name, &match value {
@@ -108,5 +124,20 @@ impl Component for Div {
 // fn styled(div
 
 fn main() {
-	println!("NICE");
+	let test_div1 = Div {
+		state: Arc::clone(&STATE_LOCK),
+		props: HashMap::new(),
+		children: Vec::new(),
+	};
+	println!("{}", test_div1.render());
+	{
+		let mut state = STATE_LOCK.lock().unwrap();
+		state.update(|s| s.some_value += 1);
+	}
+	let test_div2 = Div {
+		state: Arc::clone(&STATE_LOCK),
+		props: HashMap::new(),
+		children: Vec::new(),
+	};
+	println!("{}", test_div2.render());
 }
