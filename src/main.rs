@@ -215,19 +215,19 @@ fn main() {
 			vec![
 				Box::new(Div::new(HashMap::new(), vec![
 					Box::new("div1"),
-				], Rc::new(RefCell::new(None)))),
+				], Rc::default())),
 				Box::new(Div::new(HashMap::new(), vec![
 					Box::new("div2"),
-				], Rc::new(RefCell::new(None)))),
+				], Rc::default())),
 				Box::new(Div::new(HashMap::new(), vec![
 					Box::new(|state: StateRc| format!("more {}", state.borrow().state.some_value)),
-				], Rc::new(RefCell::new(None)))),
+				], Rc::new(RefCell::new(Some(Box::new(move |_| {
+					StateLock::update(&mut new_state, move |s| {
+						s.some_value += 1;
+					});
+				})))))),
 			],
-			Rc::new(RefCell::new(Some(Box::new(move |_| {
-				StateLock::update(&mut new_state, move |s| {
-					s.some_value += 1;
-				});
-			})))),
+			Rc::default(),
 		);
 
 		state_write.mount.borrow_mut().push(Box::new(test_div));
