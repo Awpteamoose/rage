@@ -1,7 +1,10 @@
 [package]
-name = "r8"
-version = "0.1.0"
+name = "rage"
+version = "0.0.1"
 edition = "2018"
+description = "web shit for rust age, heavy wip"
+license = "CC0-1.0"
+authors = ["Awpteamoose <cargo@awpteamoose.my.to>"]
 
 [dependencies]
 lazy_static = "1.1.0"
