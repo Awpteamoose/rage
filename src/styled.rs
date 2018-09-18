@@ -1,16 +1,9 @@
+use crate::{Component, State, StateRc};
 use std::{
-	collections::{
-		HashMap,
-		hash_map::DefaultHasher,
-	},
+	collections::{hash_map::DefaultHasher, HashMap},
 	hash::Hasher,
 };
 use stdweb::web::Node;
-use crate::{
-	Component,
-	StateRc,
-	State,
-};
 
 fn hash(s: &str) -> String {
 	let mut hasher = DefaultHasher::new();

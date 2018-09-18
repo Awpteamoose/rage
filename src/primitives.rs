@@ -1,20 +1,8 @@
-use std::{
-	collections::HashMap,
-	cell::RefCell,
-	rc::Rc,
-};
+use crate::{Component, StateRc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use stdweb::{
-	// console, __internal_console_unsafe,
-	web::{
-		document,
-		event,
-		Node,
-	},
 	traits::*,
-};
-use crate::{
-	Component,
-	StateRc,
+	web::{document, event, Node},
 };
 
 type ClickOption = Option<Box<dyn FnMut(event::ClickEvent)>>;
@@ -60,7 +48,7 @@ macro_rules! primitive {
 			fn children(&mut self) -> &mut Vec<Box<dyn Component>> { &mut self.0.children }
 			fn attributes(&mut self) -> &mut HashMap<String, String> { &mut self.0.attributes }
 		}
-	}
+	};
 }
 
 primitive!(Div, "div");

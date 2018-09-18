@@ -55,29 +55,17 @@
 mod primitives;
 mod styled;
 
+use self::{primitives::*, styled::*};
 use std::{
-	collections::{
-		HashMap,
-		hash_map::DefaultHasher,
-	},
-	hash::Hasher,
 	cell::RefCell,
+	collections::{hash_map::DefaultHasher, HashMap},
+	hash::Hasher,
 	rc::Rc,
 };
 use stdweb::{
-	// console, __internal_console_unsafe,
-	web::{
-		document,
-		HtmlElement,
-		event,
-		Node,
-	},
-	unstable::TryFrom,
 	traits::*,
-};
-use self::{
-	styled::*,
-	primitives::*,
+	unstable::TryFrom,
+	web::{document, event, HtmlElement, Node},
 };
 // use maplit::*;
 
@@ -146,26 +134,19 @@ fn main() {
 		let state_write = &mut state.borrow_mut() as &mut StateLock;
 
 		let test_div2 = Styled {
-			inner: Div::new(
-				HashMap::new(),
-				vec![Box::new("pidoir")],
-				Rc::default(),
-			),
-			get_css: |_, state: &State| {
-				format!("width: {}px", state.some_value)
-			},
+			inner: Div::new(HashMap::new(), vec![Box::new("pidoir")], Rc::default()),
+			get_css: |_, state: &State| format!("width: {}px", state.some_value),
 		};
 
-		let test_div3 = Div::new(
-			HashMap::new(),
-			vec![Box::new(test_div2)],
-			Rc::default(),
-		);
+		let test_div3 = Div::new(HashMap::new(), vec![Box::new(test_div2)], Rc::default());
 
 		let mut new_state = Rc::clone(&state);
 		let test_div = Div::new(
 			HashMap::new(),
-			vec![Box::new(test_div3), Box::new(|state: StateRc| format!("more pidoir {}", state.borrow().state.some_value))],
+			vec![
+				Box::new(test_div3),
+				Box::new(|state: StateRc| format!("more pidoir {}", state.borrow().state.some_value)),
+			],
 			Rc::new(RefCell::new(Some(Box::new(move |_| {
 				StateLock::update(&mut new_state, move |s| {
 					s.some_value += 1;
