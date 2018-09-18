@@ -63,6 +63,8 @@ use std::{
 	rc::Rc,
 };
 use stdweb::{
+	js, _js_impl, __js_raw_asm,
+	console, __internal_console_unsafe,
 	traits::*,
 	unstable::TryFrom,
 	web::{document, event, HtmlElement, Node},
@@ -75,7 +77,7 @@ pub struct State {
 }
 
 pub struct StateLock {
-	root: HtmlElement,
+	root: Node,
 	style: HtmlElement,
 	mount: Rc<RefCell<Vec<Box<dyn Component>>>>,
 	styles: Rc<RefCell<HashMap<String, String>>>,
@@ -85,7 +87,7 @@ pub struct StateLock {
 impl Default for StateLock {
 	fn default() -> Self {
 		Self {
-			root: HtmlElement::try_from(document().create_element("div").unwrap()).unwrap(),
+			root: Node::from(document().create_element("div").unwrap()),
 			style: HtmlElement::try_from(document().create_element("style").unwrap()).unwrap(),
 			mount: Rc::new(RefCell::new(Vec::new())),
 			styles: Rc::new(RefCell::new(HashMap::new())),
@@ -109,22 +111,61 @@ pub trait Component {
 	fn attributes(&mut self) -> &mut HashMap<String, String> { unimplemented!() }
 }
 
+fn update_node(parent: &mut Node, old: &mut Option<Node>, new: &Option<Node>) {
+	match (old, new) {
+		(None, Some(node)) => {
+			parent.append_child(node);
+		},
+		(Some(node), None) => {
+			let _ = parent.remove_child(node).unwrap();
+		},
+		(Some(old_node), Some(new_node)) if !Node::is_equal_node(old_node, new_node) => {
+			if !old_node.has_child_nodes() || !new_node.has_child_nodes() {
+				let _ = parent.replace_child(new_node, old_node).unwrap();
+			} else {
+				let old_node_children = old_node.child_nodes();
+				let new_node_children = new_node.child_nodes();
+				let min = u32::min(old_node_children.len(), new_node_children.len());
+
+				for i in 0 .. min {
+					update_node(old_node, &mut old_node_children.item(i), &new_node_children.item(i));
+				}
+
+				// less nodes in new than old -> remove nodes
+				for i in min .. old_node_children.len() {
+					let _ = parent.remove_child(&old_node_children.item(i).unwrap()).unwrap();
+				}
+
+				// less nodes in old than new -> add nodes
+				for i in min .. new_node_children.len() {
+					parent.append_child(&new_node_children.item(i).unwrap());
+				}
+			}
+		},
+		_ => (),
+	}
+}
+
 fn update_dom(state: &StateRc) {
 	let mut nodes = Vec::new();
 	for cmp in state.borrow().mount.borrow_mut().iter_mut() {
 		nodes.push(cmp.render(Rc::clone(&state)));
 	}
+
 	let StateLock { style, root, styles, .. } = &mut state.borrow_mut() as &mut StateLock;
 
 	styles.borrow_mut().clear();
-	root.set_text_content("");
 
 	style.set_text_content(&styles.borrow_mut().iter().fold(String::new(), |acc, (class, style)| {
 		acc + &format!(".{} {{ {} }}", class, style)
 	}));
 
-	for node in nodes {
-		root.append_child(&node);
+	let root_children = root.child_nodes();
+
+	let mut with_index: Vec<_> = nodes.into_iter().enumerate().collect();
+
+	while let Some((index, node)) = with_index.pop() {
+		update_node(root, &mut root_children.item(index as u32), &Some(node));
 	}
 }
 
@@ -133,19 +174,54 @@ fn main() {
 	{
 		let state_write = &mut state.borrow_mut() as &mut StateLock;
 
-		let test_div2 = Styled {
-			inner: Div::new(HashMap::new(), vec![Box::new("pidoir")], Rc::default()),
-			get_css: |_, state: &State| format!("width: {}px", state.some_value),
-		};
+		// let test_div2 = Styled {
+		//     inner: Div::new(HashMap::new(), vec![Box::new("pidoir")], Rc::default()),
+		//     get_css: |_, state: &State| format!("width: {}px", state.some_value),
+		// };
 
-		let test_div3 = Div::new(HashMap::new(), vec![Box::new(test_div2)], Rc::default());
+		// poop! [
+		//     Div[
+		//         []
+		//         [
+		//             Div[
+		//                 []
+		//                 ["div1"]
+		//                 []
+		//             ]
+		//             Div[
+		//                 []
+		//                 ["div2"]
+		//                 []
+		//             ]
+		//             Div[
+		//                 []
+		//                 [|state: StateRc| format!("more {}", state.borrow().state.some_value)]
+		//                 [
+		//                     click => move |_| {
+		//                         StateLock::update(&mut new_state, move |s| {
+		//                             s.some_value += 1;
+		//                         });
+		//                     },
+		//                 ]
+		//             ]
+		//         ]
+		//         []
+		//     ]
+		// ];
 
 		let mut new_state = Rc::clone(&state);
 		let test_div = Div::new(
 			HashMap::new(),
 			vec![
-				Box::new(test_div3),
-				Box::new(|state: StateRc| format!("more pidoir {}", state.borrow().state.some_value)),
+				Box::new(Div::new(HashMap::new(), vec![
+					Box::new("div1"),
+				], Rc::new(RefCell::new(None)))),
+				Box::new(Div::new(HashMap::new(), vec![
+					Box::new("div2"),
+				], Rc::new(RefCell::new(None)))),
+				Box::new(Div::new(HashMap::new(), vec![
+					Box::new(|state: StateRc| format!("more {}", state.borrow().state.some_value)),
+				], Rc::new(RefCell::new(None)))),
 			],
 			Rc::new(RefCell::new(Some(Box::new(move |_| {
 				StateLock::update(&mut new_state, move |s| {
