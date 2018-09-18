@@ -36,8 +36,9 @@ macro_rules! primitive {
 					element.set_attribute(name, value).unwrap();
 				}
 
-				let mut on_click = Rc::clone(&self.0.on_click);
-				element.add_event_listener(move |e: event::ClickEvent| {
+				let on_click = Rc::clone(&self.0.on_click);
+				// TODO: maybe use it and then unhook events on re-render
+				let _handle = element.add_event_listener(move |e: event::ClickEvent| {
 					if let Some(f) = &mut on_click.borrow_mut() as &mut ClickOption {
 						f(e)
 					}
