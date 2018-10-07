@@ -1,4 +1,7 @@
-#![deny(rust_2018_idioms)]
+#![deny(
+	rust_2018_idioms,
+	unused_must_use, // warn by default
+)]
 #![warn(
 	clippy::clippy,
 	clippy::clippy_pedantic,
@@ -14,7 +17,7 @@
 	clippy::option_unwrap_used,
 	clippy::result_unwrap_used,
 	clippy::wrong_pub_self_convention,
-	clippy::shadow_unrelated,
+	clippy::shadow_reuse,
 
 	// Pedantic (these are Allow in Pedantic)
 	clippy::empty_enum,
@@ -28,6 +31,7 @@
 	clippy::result_map_unwrap_or_else,
 	clippy::stutter,
 	clippy::use_self,
+	clippy::shadow_unrelated,
 
 	// default rust lints that are Allow
 	// https://doc.rust-lang.org/nightly/rustc/lints/listing/allowed-by-default.html
@@ -40,7 +44,7 @@
 	unused_extern_crates,
 	unused_import_braces,
 	unused_qualifications,
-	unused_results
+	unused_results,
 )]
 #![cfg_attr(not(debug_assertions), warn(
 	// Restriction
@@ -48,9 +52,11 @@
 	clippy::print_stdout,
 	clippy::unimplemented,
 ))]
-#![allow(clippy::result_unwrap_used, clippy::option_unwrap_used)]
-#![feature(try_from, try_trait, never_type, tool_lints, set_stdio)]
+#![feature(tool_lints)]
 #![recursion_limit = "128"]
+
+#![allow(unreachable_pub)]
+#![feature(try_from, try_trait, never_type)]
 
 mod primitives;
 mod styled;
@@ -172,68 +178,34 @@ fn update_dom(state: &StateRc) {
 fn main() {
 	let state: StateRc = StateRc::default();
 	{
-		let state_write = &mut state.borrow_mut() as &mut StateLock;
+		let state_write: &mut StateLock = &mut state.borrow_mut();
 
-		// let test_div2 = Styled {
-		//     inner: Div::new(HashMap::new(), vec![Box::new("pidoir")], Rc::default()),
-		//     get_css: |_, state: &State| format!("width: {}px", state.some_value),
-		// };
-
-		// poop! [
-		//     Div[
-		//         []
-		//         [
-		//             Div[
-		//                 []
-		//                 ["div1"]
-		//                 []
-		//             ]
-		//             Div[
-		//                 []
-		//                 ["div2"]
-		//                 []
-		//             ]
-		//             Div[
-		//                 []
-		//                 [|state: StateRc| format!("more {}", state.borrow().state.some_value)]
-		//                 [
-		//                     click => move |_| {
-		//                         StateLock::update(&mut new_state, move |s| {
-		//                             s.some_value += 1;
-		//                         });
-		//                     },
-		//                 ]
-		//             ]
-		//         ]
-		//         []
-		//     ]
-		// ];
+		macro_rules! children {
+			($($e: expr),+$(,)*) => {
+				vec![$(Box::new($e),)+]
+			};
+		};
 
 		let mut new_state = Rc::clone(&state);
-		let test_div = Div::new(
-			HashMap::new(),
-			vec![
-				Box::new(Div::new(HashMap::new(), vec![
-					Box::new("div1"),
-				], Rc::default())),
-				Box::new(Div::new(HashMap::new(), vec![
-					Box::new("div2"),
-				], Rc::default())),
-				Box::new(Div::new(HashMap::new(), vec![
-					Box::new(|state: StateRc| format!("more {}", state.borrow().state.some_value)),
-				], Rc::new(RefCell::new(Some(Box::new(move |_| {
-					StateLock::update(&mut new_state, move |s| {
-						s.some_value += 1;
-					});
-				})))))),
-			],
-			Rc::default(),
-		);
+		let test_div = Div::new()
+			.children(children![
+				Div::new().children(children!["div1"]),
+				Div::new().children(children!["div2"]),
+				Div::new()
+					.children(children![
+						|state: &State| format!("more {}", state.some_value),
+					])
+					.on_click(move |_| {
+						StateLock::update(&mut new_state, move |s| {
+							s.some_value += 1;
+						});
+					}),
+			]);
 
 		state_write.mount.borrow_mut().push(Box::new(test_div));
 
-		document().head().unwrap().append_child(&state_write.style);
-		document().body().unwrap().append_child(&state_write.root);
+		document().head().expect("no head").append_child(&state_write.style);
+		document().body().expect("no body").append_child(&state_write.root);
 	}
 
 	update_dom(&state);

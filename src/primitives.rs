@@ -1,17 +1,19 @@
-use crate::{Component, StateRc};
+use crate::{Component, StateRc, State};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use stdweb::{
 	traits::*,
 	web::{document, event, Node},
 };
 
-type ClickOption = Option<Box<dyn FnMut(event::ClickEvent)>>;
-type OnClick = Rc<RefCell<ClickOption>>;
+type OnClick = Box<dyn FnMut(event::ClickEvent)>;
+type OnClickRc = Option<Rc<RefCell<OnClick>>>;
+type Attributes = HashMap<String, String>;
+type Children = Vec<Box<dyn Component>>;
 
 struct Primitive {
-	children: Vec<Box<dyn Component>>,
-	attributes: HashMap<String, String>,
-	on_click: OnClick,
+	children: Children,
+	attributes: Attributes,
+	on_click: OnClickRc,
 }
 
 macro_rules! primitive {
@@ -19,8 +21,24 @@ macro_rules! primitive {
 		pub struct $name(Primitive);
 
 		impl $name {
-			pub fn new(attributes: HashMap<String, String>, children: Vec<Box<dyn Component>>, on_click: OnClick) -> $name {
-				$name(Primitive { attributes, children, on_click })
+			pub fn new() -> Self {
+				// unimplemented!()
+				$name(Primitive { attributes: Attributes::new(), children: Children::new(), on_click: None })
+			}
+
+			pub fn attributes(mut self, attributes: Attributes) -> Self {
+				self.0.attributes = attributes;
+				self
+			}
+
+			pub fn children(mut self, children: Children) -> Self {
+				self.0.children = children;
+				self
+			}
+
+			pub fn on_click(mut self, on_click: impl FnMut(event::ClickEvent) + 'static) -> Self {
+				self.0.on_click = Some(Rc::new(RefCell::new(Box::new(on_click))));
+				self
 			}
 		}
 
@@ -36,18 +54,19 @@ macro_rules! primitive {
 					element.set_attribute(name, value).unwrap();
 				}
 
-				let on_click = Rc::clone(&self.0.on_click);
-				// TODO: maybe use it and then unhook events on re-render
-				let _handle = element.add_event_listener(move |e: event::ClickEvent| {
-					if let Some(f) = &mut on_click.borrow_mut() as &mut ClickOption {
+				if let Some(ref cb) = self.0.on_click {
+					// TODO: maybe use it and then unhook events on re-render
+					let on_click = Rc::clone(cb);
+					let _handle = element.add_event_listener(move |e: event::ClickEvent| {
+						let f: &mut OnClick = &mut on_click.borrow_mut();
 						f(e)
-					}
-				});
+					});
+				}
 
 				element.into()
 			}
-			fn children(&mut self) -> &mut Vec<Box<dyn Component>> { &mut self.0.children }
-			fn attributes(&mut self) -> &mut HashMap<String, String> { &mut self.0.attributes }
+			fn children(&mut self) -> &mut Children { &mut self.0.children }
+			fn attributes(&mut self) -> &mut Attributes { &mut self.0.attributes }
 		}
 	};
 }
@@ -66,8 +85,8 @@ impl Component for &str {
 	}
 }
 
-impl<T: ToString, F: Fn(StateRc) -> T> Component for F {
+impl<T: ToString, F: Fn(&State) -> T> Component for F {
 	fn render(&mut self, state: StateRc) -> Node {
-		document().create_text_node(&self(state).to_string()).into()
+		document().create_text_node(&self(&state.borrow().state).to_string()).into()
 	}
 }
