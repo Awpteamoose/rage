@@ -176,9 +176,9 @@ fn update_dom(state: &StateRc) {
 }
 
 fn main() {
-	let state: StateRc = StateRc::default();
+	let state_rc: StateRc = StateRc::default();
 	{
-		let state_write: &mut StateLock = &mut state.borrow_mut();
+		let state_lock: &mut StateLock = &mut state_rc.borrow_mut();
 
 		macro_rules! children {
 			($($e: expr),+$(,)*) => {
@@ -186,7 +186,7 @@ fn main() {
 			};
 		};
 
-		let mut new_state = Rc::clone(&state);
+		let mut new_state = Rc::clone(&state_rc);
 		let test_div = Div::new()
 			.children(children![
 				Div::new().children(children!["div1"]),
@@ -202,11 +202,11 @@ fn main() {
 					}),
 			]);
 
-		state_write.mount.borrow_mut().push(Box::new(test_div));
+		state_lock.mount.borrow_mut().push(Box::new(test_div));
 
-		document().head().expect("no head").append_child(&state_write.style);
-		document().body().expect("no body").append_child(&state_write.root);
+		document().head().expect("no head").append_child(&state_lock.style);
+		document().body().expect("no body").append_child(&state_lock.root);
 	}
 
-	update_dom(&state);
+	update_dom(&state_rc);
 }

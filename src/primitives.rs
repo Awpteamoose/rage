@@ -22,7 +22,6 @@ macro_rules! primitive {
 
 		impl $name {
 			pub fn new() -> Self {
-				// unimplemented!()
 				$name(Primitive { attributes: Attributes::new(), children: Children::new(), on_click: None })
 			}
 
