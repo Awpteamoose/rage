@@ -127,7 +127,7 @@ fn main() {
 		let test_div = FnCmp(Box::new(|state_rc: StateRc| {
 			let state = &state_rc.borrow().state;
 
-			styled(div, r#"color: red;"#.to_owned())(
+			styled(div, format!(r#"font-size: {}px;"#, (state.some_value + 5) * 10))(
 				&state_rc,
 				&children![
 					"Shitty\n",
@@ -143,13 +143,13 @@ fn main() {
 						});
 					});
 
-					let mut new_state = Rc::clone(&state_rc);
-					let _ = e.add_event_listener(move |_: event::MouseEnterEvent| {
-						console!(log, "mouse enter");
-						StateLock::update(&mut new_state, move |s| {
-							s.some_value -= 1;
-						});
-					});
+					// let mut new_state = Rc::clone(&state_rc);
+					// let _ = e.add_event_listener(move |_: event::MouseEnterEvent| {
+					//     console!(log, "mouse enter");
+					//     StateLock::update(&mut new_state, move |s| {
+					//         s.some_value -= 1;
+					//     });
+					// });
 				},
 			)
 		}));
