@@ -137,49 +137,41 @@ async fn future_main() -> Result<(), Error> {
 fn main() {
 	spawn_local(unwrap_future(future_main()));
 
-	let mut state_rc: StateRc<MyState> = StateRc::default();
+	let state_rc: StateRc<MyState> = StateRc::default();
 
-	let mount = {
-		let state_rc = Rc::clone(&state_rc);
-		Cmp::new(move || {
-			let inner = primitives::div(children!["Inner text"], attrs![], |_| {});
-			primitives::div(
-				children!["Shitty ", inner, format!("more {}", state_rc.borrow().state.some_value)],
-				attrs![
-					"class" => styled(&state_rc, &format!(r#"
-						font-size: {size}px;
-						user-select: none;
-					"#,
-						size = (state_rc.borrow().state.some_value + 5) * 10
-					)),
-				],
-				|e| {
-					let mut new_state = Rc::clone(&state_rc);
-					let _ = e.add_event_listener(move |_: event::ClickEvent| {
-						console!(log, "clicky");
-						StateLock::update(&mut new_state, move |s| {
-							s.some_value += 1;
-						});
+	dom::mount(Rc::clone(&state_rc), Cmp::new(move || {
+		let state = &state_rc.borrow().state;
+		let inner = primitives::div(children!["Inner text"], attrs![], |_| {});
+		primitives::div(
+			children!["Shitty ", inner, format!("more {}", state.some_value)],
+			attrs![
+				"class" => styled(&state_rc, &format!(r#"
+					font-size: {size}px;
+					user-select: none;
+				"#,
+					size = (state.some_value + 5) * 10
+				)),
+			],
+			|e| {
+				let mut new_state = Rc::clone(&state_rc);
+				let _ = e.add_event_listener(move |_: event::ClickEvent| {
+					console!(log, "clicky");
+					StateLock::update(&mut new_state, move |s| {
+						s.some_value += 1;
 					});
+				});
 
-					let mut new_state = Rc::clone(&state_rc);
-					let _ = e.add_event_listener(move |e: event::AuxClickEvent| {
-						if e.button() != event::MouseButton::Right {
-							return;
-						}
-						console!(log, "rick clicky");
-						StateLock::update(&mut new_state, move |s| {
-							s.some_value -= 1;
-						});
+				let mut new_state = Rc::clone(&state_rc);
+				let _ = e.add_event_listener(move |e: event::AuxClickEvent| {
+					if e.button() != event::MouseButton::Right {
+						return;
+					}
+					console!(log, "rick clicky");
+					StateLock::update(&mut new_state, move |s| {
+						s.some_value -= 1;
 					});
-				},
-			)
-		})
-	};
-
-	let _ = std::mem::replace(&mut state_rc.borrow_mut().mount, mount);
-
-	document().head().unwrap().append_child(&state_rc.borrow().style);
-
-	dom::update(&mut state_rc);
+				});
+			},
+		)
+	}));
 }

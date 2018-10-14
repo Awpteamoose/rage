@@ -1,3 +1,4 @@
+use crate::cmp::Cmp;
 use stdweb::{
 	traits::*,
 	unstable::TryFrom,
@@ -94,4 +95,13 @@ pub fn update<S: Default>(state_rc: &mut crate::StateRc<S>) {
 	let mut first = body.child_nodes().item(0);
 
 	update_node(&mut Node::from(body), &mut first, &Some(Node::from(new_node)))
+}
+
+#[allow(clippy::option_unwrap_used)]
+pub fn mount(mut state_rc: crate::StateRc<impl Default>, mount: Cmp) {
+	let _ = std::mem::replace(&mut state_rc.borrow_mut().mount, mount);
+
+	document().head().unwrap().append_child(&state_rc.borrow().style);
+
+	update(&mut state_rc);
 }
