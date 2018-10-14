@@ -1,4 +1,4 @@
-required_version = "0.99.4"
+required_version = "0.99.5"
 unstable_features = true
 
 hard_tabs = true
@@ -12,7 +12,7 @@ reorder_impl_items = true
 # report_fixme = "Always"
 use_field_init_shorthand = true
 use_try_shorthand = true
-edition = "Edition2018"
+edition = "2018"
 blank_lines_upper_bound = 1
 newline_style = "Unix"
 merge_derives = true
