@@ -2,13 +2,12 @@ use crate::{FnCmp, StateRc};
 use std::collections::HashMap;
 use stdweb::{
 	traits::*,
-	web::{document, Element, Node},
+	web::{document, Element},
 };
-use maplit::*;
 
-macro_rules! __primitive {
+macro_rules! __p {
 	($name: ident) => {
-		#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
+		#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used, dead_code, non_snake_case)]
 		pub fn $name(
 			state_rc: &StateRc,
 			children: &[FnCmp],
@@ -32,58 +31,60 @@ macro_rules! __primitive {
 	};
 }
 
-__primitive!(a);__primitive!(abbr);__primitive!(address);__primitive!(area);
-__primitive!(article);__primitive!(aside);__primitive!(audio);__primitive!(b);
-__primitive!(base);__primitive!(bdi);__primitive!(bdo);__primitive!(big);
-__primitive!(blockquote);__primitive!(body);__primitive!(br);__primitive!(button);
-__primitive!(canvas);__primitive!(caption);__primitive!(circle);__primitive!(cite);
-__primitive!(clipPath);__primitive!(code);__primitive!(col);__primitive!(colgroup);
-__primitive!(data);__primitive!(datalist);__primitive!(dd);__primitive!(defs);
-__primitive!(del);__primitive!(details);__primitive!(dfn);__primitive!(dialog);
-__primitive!(div);__primitive!(dl);__primitive!(dt);__primitive!(ellipse);
-__primitive!(em);__primitive!(embed);__primitive!(fieldset);__primitive!(figcaption);
-__primitive!(figure);__primitive!(footer);__primitive!(foreignObject);__primitive!(form);
-__primitive!(g);__primitive!(h1);__primitive!(h2);__primitive!(h3);
-__primitive!(h4);__primitive!(h5);__primitive!(h6);__primitive!(head);
-__primitive!(header);__primitive!(hgroup);__primitive!(hr);__primitive!(html);
-__primitive!(i);__primitive!(iframe);__primitive!(image);__primitive!(img);
-__primitive!(input);__primitive!(ins);__primitive!(kbd);__primitive!(keygen);
-__primitive!(label);__primitive!(legend);__primitive!(li);__primitive!(line);
-__primitive!(linearGradient);__primitive!(link);__primitive!(main);__primitive!(map);
-__primitive!(mark);__primitive!(marquee);__primitive!(mask);__primitive!(menu);
-__primitive!(menuitem);__primitive!(meta);__primitive!(meter);__primitive!(nav);
-__primitive!(noscript);__primitive!(object);__primitive!(ol);__primitive!(optgroup);
-__primitive!(option);__primitive!(output);__primitive!(p);__primitive!(param);
-__primitive!(path);__primitive!(pattern);__primitive!(picture);__primitive!(polygon);
-__primitive!(polyline);__primitive!(pre);__primitive!(progress);__primitive!(prototype);
-__primitive!(q);__primitive!(radialGradient);__primitive!(rect);__primitive!(rp);
-__primitive!(rt);__primitive!(ruby);__primitive!(s);__primitive!(samp);
-__primitive!(script);__primitive!(section);__primitive!(select);__primitive!(small);
-__primitive!(source);__primitive!(span);__primitive!(stop);__primitive!(strong);
-__primitive!(style);__primitive!(sub);__primitive!(summary);__primitive!(sup);
-__primitive!(svg);__primitive!(table);__primitive!(tbody);__primitive!(td);
-__primitive!(text);__primitive!(textarea);__primitive!(tfoot);__primitive!(th);
-__primitive!(thead);__primitive!(time);__primitive!(title);__primitive!(tr);
-__primitive!(track);__primitive!(tspan);__primitive!(u);__primitive!(ul);
-__primitive!(var);__primitive!(video);__primitive!(wbr);
+__p!(a);__p!(abbr);__p!(address);__p!(area);
+__p!(article);__p!(aside);__p!(audio);__p!(b);
+__p!(base);__p!(bdi);__p!(bdo);__p!(big);
+__p!(blockquote);__p!(body);__p!(br);__p!(button);
+__p!(canvas);__p!(caption);__p!(circle);__p!(cite);
+__p!(clipPath);__p!(code);__p!(col);__p!(colgroup);
+__p!(data);__p!(datalist);__p!(dd);__p!(defs);
+__p!(del);__p!(details);__p!(dfn);__p!(dialog);
+__p!(div);__p!(dl);__p!(dt);__p!(ellipse);
+__p!(em);__p!(embed);__p!(fieldset);__p!(figcaption);
+__p!(figure);__p!(footer);__p!(foreignObject);__p!(form);
+__p!(g);__p!(h1);__p!(h2);__p!(h3);
+__p!(h4);__p!(h5);__p!(h6);__p!(head);
+__p!(header);__p!(hgroup);__p!(hr);__p!(html);
+__p!(i);__p!(iframe);__p!(image);__p!(img);
+__p!(input);__p!(ins);__p!(kbd);__p!(keygen);
+__p!(label);__p!(legend);__p!(li);__p!(line);
+__p!(linearGradient);__p!(link);__p!(main);__p!(map);
+__p!(mark);__p!(marquee);__p!(mask);__p!(menu);
+__p!(menuitem);__p!(meta);__p!(meter);__p!(nav);
+__p!(noscript);__p!(object);__p!(ol);__p!(optgroup);
+__p!(option);__p!(output);__p!(p);__p!(param);
+__p!(path);__p!(pattern);__p!(picture);__p!(polygon);
+__p!(polyline);__p!(pre);__p!(progress);__p!(prototype);
+__p!(q);__p!(radialGradient);__p!(rect);__p!(rp);
+__p!(rt);__p!(ruby);__p!(s);__p!(samp);
+__p!(script);__p!(section);__p!(select);__p!(small);
+__p!(source);__p!(span);__p!(stop);__p!(strong);
+__p!(style);__p!(sub);__p!(summary);__p!(sup);
+__p!(svg);__p!(table);__p!(tbody);__p!(td);
+__p!(text);__p!(textarea);__p!(tfoot);__p!(th);
+__p!(thead);__p!(time);__p!(title);__p!(tr);
+__p!(track);__p!(tspan);__p!(u);__p!(ul);
+__p!(var);__p!(video);__p!(wbr);
 
 impl From<String> for FnCmp {
+	#[allow(clippy::result_unwrap_used)]
 	fn from(s: String) -> Self {
 		FnCmp(Box::new(move |_| {
-			let p = document().create_element("span").unwrap();
-			p.set_text_content(&s);
-			p
+			let elem = document().create_element("span").unwrap();
+			elem.set_text_content(&s);
+			elem
 		}))
 	}
 }
 
 impl From<&str> for FnCmp {
+	#[allow(clippy::result_unwrap_used)]
 	fn from(s: &str) -> Self {
 		let owned = s.to_owned();
 		FnCmp(Box::new(move |_| {
-			let p = document().create_element("span").unwrap();
-			p.set_text_content(&owned);
-			p
+			let elem = document().create_element("span").unwrap();
+			elem.set_text_content(&owned);
+			elem
 		}))
 	}
 }

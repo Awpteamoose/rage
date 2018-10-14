@@ -89,6 +89,7 @@ pub struct State {
 	some_value: i32,
 }
 
+#[allow(missing_debug_implementations)]
 pub struct StateLock {
 	pub style: Element,
 	pub mount: FnCmp,
@@ -97,6 +98,7 @@ pub struct StateLock {
 }
 
 impl Default for StateLock {
+	#[allow(clippy::result_unwrap_used)]
 	fn default() -> Self {
 		Self {
 			style: document().create_element("style").unwrap(),
@@ -116,9 +118,17 @@ impl StateLock {
 
 pub type StateRc = Rc<RefCell<StateLock>>;
 
+#[allow(missing_debug_implementations)]
 pub struct FnCmp(Box<dyn Fn(&StateRc) -> Element>);
 
+impl FnCmp {
+	fn new(f: impl 'static + Fn(&StateRc) -> Element) -> Self {
+		FnCmp(Box::new(f))
+	}
+}
+
 fn fetch(url: &str) -> PromiseFuture<String> {
+	#[allow(clippy::result_unwrap_used)]
 	js!(return fetch(@{url}).then((r)=>r.text());)
 		.try_into()
 		.unwrap()
@@ -130,6 +140,7 @@ async fn print(message: &str) {
 	console!(log, message);
 }
 
+#[allow(clippy::useless_let_if_seq)]
 async fn future_main() -> Result<(), Error> {
 	// Runs Futures synchronously
 	await!(print("Hello"));
@@ -166,7 +177,7 @@ fn main() {
 	{
 		let state_lock: &mut StateLock = &mut state_rc.borrow_mut();
 
-		let test_div = FnCmp(Box::new(|state_rc: &StateRc| {
+		let test_div = FnCmp::new(|state_rc: &StateRc| {
 			let state = &state_rc.borrow().state;
 
 			styled(
@@ -175,7 +186,7 @@ fn main() {
 					&state_rc,
 					children!["Shitty ", format!("more {}", state.some_value)],
 					attrs![],
-					|e| {
+					move |e| {
 						let mut new_state = Rc::clone(&state_rc);
 						let _ = e.add_event_listener(move |_: event::ClickEvent| {
 							console!(log, "clicky");
@@ -203,7 +214,7 @@ fn main() {
 					size = (state.some_value + 5) * 10
 				),
 			)
-		}));
+		});
 
 		let _ = std::mem::replace(&mut state_lock.mount, test_div);
 
