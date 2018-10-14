@@ -76,7 +76,7 @@ use stdweb::{
 	unstable::TryFrom,
 	web::{document, event, HtmlElement, Node},
 };
-// use maplit::*;
+use maplit::*;
 
 #[derive(Default, Debug)]
 pub struct State {
@@ -84,19 +84,17 @@ pub struct State {
 }
 
 pub struct StateLock {
-	root: Node,
-	style: HtmlElement,
-	mount: Rc<RefCell<Vec<Box<dyn Component>>>>,
-	styles: Rc<RefCell<HashMap<String, String>>>,
-	state: State,
+	pub style: HtmlElement,
+	pub mount: FnCmp,
+	pub styles: Rc<RefCell<HashMap<String, String>>>,
+	pub state: State,
 }
 
 impl Default for StateLock {
 	fn default() -> Self {
 		Self {
-			root: Node::from(document().create_element("div").unwrap()),
 			style: HtmlElement::try_from(document().create_element("style").unwrap()).unwrap(),
-			mount: Rc::new(RefCell::new(Vec::new())),
+			mount: FnCmp(Box::new(|| Node::from(document().create_element("div").unwrap()))),
 			styles: Rc::new(RefCell::new(HashMap::new())),
 			state: State::default(),
 		}
@@ -118,37 +116,61 @@ pub trait Component {
 	fn attributes(&mut self) -> &mut HashMap<String, String> { unimplemented!() }
 }
 
+pub struct FnCmp(Box<dyn Fn () -> Node>);
+
+fn div_f(children: &Vec<FnCmp>, attributes: HashMap<String, String>) -> Node {
+	let element = document().create_element("div").unwrap();
+
+	for child in children {
+		element.append_child(&child.0());
+	}
+
+	for (name, value) in attributes.iter() {
+		element.set_attribute(name, value).unwrap();
+	}
+
+	element.into()
+}
+
 fn main() {
 	let state_rc: StateRc = StateRc::default();
 	{
 		let state_lock: &mut StateLock = &mut state_rc.borrow_mut();
+		let mut new_state = Rc::clone(&state_rc);
+
+		// macro_rules! children {
+		//     ($($e: expr),+$(,)*) => {
+		//         vec![$(Box::new($e),)+]
+		//     };
+		// };
+
+		// let test_div = Div::new()
+		//     .children(children![
+		//         Div::new().children(children!["div1"]),
+		//         Div::new().children(children!["div2"]),
+		//         Div::new()
+		//             .children(children![
+		//                 |state: &State| format!("more {}", state.some_value),
+		//             ])
+		//             .on_click(move |_| {
+		//                 StateLock::update(&mut new_state, move |s| {
+		//                     s.some_value += 1;
+		//                 });
+		//             }),
+		//     ]);
 
 		macro_rules! children {
 			($($e: expr),+$(,)*) => {
-				vec![$(Box::new($e),)+]
+				vec![$($e.into(),)+]
 			};
 		};
+		let test_div = FnCmp(Box::new(|| {
+			div_f(&children!["Shitty"], hashmap![])
+		}));
 
-		let mut new_state = Rc::clone(&state_rc);
-		let test_div = Div::new()
-			.children(children![
-				Div::new().children(children!["div1"]),
-				Div::new().children(children!["div2"]),
-				Div::new()
-					.children(children![
-						|state: &State| format!("more {}", state.some_value),
-					])
-					.on_click(move |_| {
-						StateLock::update(&mut new_state, move |s| {
-							s.some_value += 1;
-						});
-					}),
-			]);
-
-		state_lock.mount.borrow_mut().push(Box::new(test_div));
+		std::mem::replace(&mut state_lock.mount, test_div);
 
 		document().head().expect("no head").append_child(&state_lock.style);
-		document().body().expect("no body").append_child(&state_lock.root);
 	}
 
 	update_dom(&state_rc);

@@ -89,3 +89,24 @@ impl<T: ToString, F: Fn(&State) -> T> Component for F {
 		document().create_text_node(&self(&state.borrow().state).to_string()).into()
 	}
 }
+
+// -------------
+
+impl From<String> for crate::FnCmp {
+	fn from(s: String) -> Self {
+		crate::FnCmp(Box::new(move || document().create_text_node(&s).into()))
+	}
+}
+
+impl From<&str> for crate::FnCmp {
+	fn from(s: &str) -> Self {
+		let owned = s.to_owned();
+		crate::FnCmp(Box::new(move || document().create_text_node(&owned).into()))
+	}
+}
+
+// impl<T: ToString, F: Fn(&State) -> T> Component for F {
+//     fn render(&mut self, state: StateRc) -> Node {
+//         document().create_text_node(&self(&state.borrow().state).to_string()).into()
+//     }
+// }

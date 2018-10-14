@@ -48,12 +48,7 @@ pub fn update_node(parent: &mut Node, old: &mut Option<Node>, new: &Option<Node>
 }
 
 pub fn update_dom(state: &crate::StateRc) {
-	let mut nodes = Vec::new();
-	for cmp in state.borrow().mount.borrow_mut().iter_mut() {
-		nodes.push(cmp.render(Rc::clone(&state)));
-	}
-
-	let crate::StateLock { style, root, styles, .. } = &mut state.borrow_mut() as &mut crate::StateLock;
+	let crate::StateLock { style, styles, mount, .. } = &mut state.borrow_mut() as &mut crate::StateLock;
 
 	styles.borrow_mut().clear();
 
@@ -61,11 +56,8 @@ pub fn update_dom(state: &crate::StateRc) {
 		acc + &format!(".{} {{ {} }}", class, style)
 	}));
 
-	let root_children = root.child_nodes();
+	let body = document().body().unwrap();
+	let mut first = body.child_nodes().item(0);
 
-	let mut with_index: Vec<_> = nodes.into_iter().enumerate().collect();
-
-	while let Some((index, node)) = with_index.pop() {
-		update_node(root, &mut root_children.item(index as u32), &Some(node));
-	}
+	update_node(&mut Node::from(body), &mut first, &Some(mount.0()));
 }
