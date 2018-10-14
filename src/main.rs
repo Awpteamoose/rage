@@ -62,7 +62,7 @@ mod dom;
 #[macro_use] mod primitives;
 mod styled;
 
-use self::{primitives::*, styled::styled};
+use self::styled::styled;
 use futures::{join, try_join};
 use maplit::*;
 use std::{
@@ -171,7 +171,7 @@ fn main() {
 
 			styled(
 				&state_rc,
-				div(
+				primitives::div(
 					&state_rc,
 					children!["Shitty ", format!("more {}", state.some_value)],
 					attrs![],
