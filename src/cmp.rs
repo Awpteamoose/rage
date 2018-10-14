@@ -11,7 +11,7 @@ use crate::dom;
 #[allow(missing_debug_implementations)]
 pub struct StateLock<S: Default> {
 	pub style: Element,
-	pub mount: FnCmp<S>,
+	pub mount: Cmp,
 	pub styles: Rc<RefCell<HashMap<String, String>>>,
 	pub state: S,
 }
@@ -21,7 +21,7 @@ impl<S: Default> Default for StateLock<S> {
 	fn default() -> Self {
 		Self {
 			style: document().create_element("style").unwrap(),
-			mount: FnCmp(Box::new(|_| document().create_element("div").unwrap())),
+			mount: Cmp::new(|| document().create_element("div").unwrap()),
 			styles: Rc::default(),
 			state: S::default(),
 		}
@@ -38,10 +38,10 @@ impl<S: Default> StateLock<S> {
 pub type StateRc<S> = Rc<RefCell<StateLock<S>>>;
 
 #[allow(missing_debug_implementations)]
-pub struct FnCmp<S: Default>(pub Box<dyn Fn(&StateLock<S>) -> Element>);
+pub struct Cmp(pub Box<dyn Fn() -> Element>);
 
-impl<S: Default> FnCmp<S> {
-	pub fn new(f: impl 'static + Fn(&StateLock<S>) -> Element) -> Self {
-		FnCmp(Box::new(f))
+impl Cmp {
+	pub fn new(f: impl 'static + Fn() -> Element) -> Self {
+		Cmp(Box::new(f))
 	}
 }

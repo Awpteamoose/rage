@@ -1,6 +1,6 @@
 use crate::cmp::{StateRc, StateLock};
 use std::{
-	collections::hash_map::DefaultHasher,
+	collections::{HashMap, hash_map::DefaultHasher},
 	hash::Hasher,
 };
 use stdweb::{
@@ -19,11 +19,10 @@ fn hash(s: &str) -> String {
 	hasher.finish().to_string()
 }
 
-pub fn styled(state_lock: &StateLock<impl Default>, element: Element, css: &str) -> Element {
+pub fn styled(state_rc: &StateRc<impl Default>, css: &str) -> String {
 	let class_hash = hash(&css);
 	let class = format!("styled{}", &class_hash);
-	let _ = element.set_attribute("class", &class);
-	let _ = state_lock.styles.borrow_mut().insert(class, css.to_owned());
+	let _ = state_rc.borrow().styles.borrow_mut().insert(class.clone(), css.to_owned());
 
-	element
+	class
 }
