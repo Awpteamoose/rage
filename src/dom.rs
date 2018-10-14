@@ -85,10 +85,7 @@ pub fn update(state_rc: &crate::StateRc) {
 		style.set_text_content(&styles.borrow_mut().iter().fold(String::new(), |acc, (class, style)| {
 			acc + &format!(".{} {{ {} }}", class, style)
 		}));
-
-		console!(log, format!("{:?}", &styles.borrow_mut()));
 	}
-
 
 	let body = document().body().unwrap();
 	let mut first = body.child_nodes().item(0);
