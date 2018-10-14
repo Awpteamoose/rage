@@ -1,4 +1,4 @@
-use crate::cmp::{Cmp, StateRc, StateLock};
+use crate::cmp::Cmp;
 use std::collections::HashMap;
 use stdweb::{
 	traits::*,

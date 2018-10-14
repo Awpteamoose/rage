@@ -1,16 +1,7 @@
-use crate::cmp::{StateRc, StateLock};
+use crate::cmp::StateRc;
 use std::{
-	collections::{HashMap, hash_map::DefaultHasher},
+	collections::hash_map::DefaultHasher,
 	hash::Hasher,
-};
-use stdweb::{
-	traits::*,
-	web::Element,
-	__internal_console_unsafe,
-	__js_raw_asm,
-	_js_impl,
-	console,
-	js,
 };
 
 fn hash(s: &str) -> String {

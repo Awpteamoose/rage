@@ -66,11 +66,7 @@ mod cmp;
 use self::styled::styled;
 use futures::{join, try_join};
 use maplit::*;
-use std::{
-	cell::RefCell,
-	collections::HashMap,
-	rc::Rc,
-};
+use std::rc::Rc;
 use stdweb::{
 	__internal_console_unsafe,
 	__js_raw_asm,
@@ -81,7 +77,7 @@ use stdweb::{
 	traits::*,
 	unstable::TryInto,
 	unwrap_future,
-	web::{document, error::Error, event, wait, Element},
+	web::{error::Error, event, wait},
 	PromiseFuture,
 };
 use crate::cmp::*;
