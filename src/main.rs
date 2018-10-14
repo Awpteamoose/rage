@@ -59,11 +59,13 @@
 #![feature(async_await, await_macro, futures_api, pin)]
 
 mod dom;
-#[macro_use] mod primitives;
-mod styled;
+#[macro_use]
+mod primitives;
 mod cmp;
+mod styled;
 
 use self::styled::styled;
+use crate::cmp::*;
 use futures::{join, try_join};
 use maplit::*;
 use std::rc::Rc;
@@ -80,7 +82,6 @@ use stdweb::{
 	web::{error::Error, event, wait},
 	PromiseFuture,
 };
-use crate::cmp::*;
 
 #[derive(Default, Debug)]
 pub struct MyState {
@@ -89,9 +90,7 @@ pub struct MyState {
 
 fn fetch(url: &str) -> PromiseFuture<String> {
 	#[allow(clippy::result_unwrap_used)]
-	js!(return fetch(@{url}).then((r)=>r.text());)
-		.try_into()
-		.unwrap()
+	js!(return fetch(@{url}).then((r)=>r.text());).try_into().unwrap()
 }
 
 async fn print(message: &str) {
@@ -135,12 +134,14 @@ fn main() {
 
 	let state_rc: StateRc<MyState> = StateRc::default();
 
-	dom::mount(Rc::clone(&state_rc), Cmp::new(move || {
-		let state = &state_rc.borrow().state;
-		let inner = primitives::div(children!["Inner text"], attrs![], |_| {});
-		primitives::div(
-			children!["Shitty ", inner, format!("more {}", state.some_value)],
-			attrs![
+	dom::mount(
+		Rc::clone(&state_rc),
+		Cmp::new(move || {
+			let state = &state_rc.borrow().state;
+			let inner = primitives::div(children!["Inner text"], attrs![], |_| {});
+			primitives::div(
+				children!["Shitty ", inner, format!("more {}", state.some_value)],
+				attrs![
 				"class" => styled(&state_rc, &format!(r#"
 					font-size: {size}px;
 					user-select: none;
@@ -148,26 +149,27 @@ fn main() {
 					size = (state.some_value + 5) * 10
 				)),
 			],
-			|e| {
-				let mut new_state = Rc::clone(&state_rc);
-				let _ = e.add_event_listener(move |_: event::ClickEvent| {
-					console!(log, "clicky");
-					StateLock::update(&mut new_state, move |s| {
-						s.some_value += 1;
+				|e| {
+					let mut new_state = Rc::clone(&state_rc);
+					let _ = e.add_event_listener(move |_: event::ClickEvent| {
+						console!(log, "clicky");
+						StateLock::update(&mut new_state, move |s| {
+							s.some_value += 1;
+						});
 					});
-				});
 
-				let mut new_state = Rc::clone(&state_rc);
-				let _ = e.add_event_listener(move |e: event::AuxClickEvent| {
-					if e.button() != event::MouseButton::Right {
-						return;
-					}
-					console!(log, "rick clicky");
-					StateLock::update(&mut new_state, move |s| {
-						s.some_value -= 1;
+					let mut new_state = Rc::clone(&state_rc);
+					let _ = e.add_event_listener(move |e: event::AuxClickEvent| {
+						if e.button() != event::MouseButton::Right {
+							return;
+						}
+						console!(log, "rick clicky");
+						StateLock::update(&mut new_state, move |s| {
+							s.some_value -= 1;
+						});
 					});
-				});
-			},
-		)
-	}));
+				},
+			)
+		}),
+	);
 }

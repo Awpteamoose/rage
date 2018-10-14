@@ -1,12 +1,6 @@
-use std::{
-	cell::RefCell,
-	collections::HashMap,
-	rc::Rc,
-};
-use stdweb::{
-	web::{document, Element},
-};
 use crate::dom;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use stdweb::web::{document, Element};
 
 #[allow(missing_debug_implementations)]
 pub struct StateLock<S: Default> {
