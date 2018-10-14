@@ -14,7 +14,7 @@ fn hash(s: &str) -> String {
 	hasher.finish().to_string()
 }
 
-pub fn styled(state_rc: &StateRc, element: Element, css: &str) -> Element {
+pub fn styled(state_rc: &StateRc<impl Default>, element: Element, css: &str) -> Element {
 	let class_hash = hash(&css);
 	let class = format!("styled{}", &class_hash);
 	let _ = element.set_attribute("class", &class);

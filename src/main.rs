@@ -61,6 +61,7 @@
 mod dom;
 #[macro_use] mod primitives;
 mod styled;
+mod cmp;
 
 use self::styled::styled;
 use futures::{join, try_join};
@@ -83,48 +84,11 @@ use stdweb::{
 	web::{document, error::Error, event, wait, Element},
 	PromiseFuture,
 };
+use crate::cmp::*;
 
 #[derive(Default, Debug)]
-pub struct State {
+pub struct MyState {
 	some_value: i32,
-}
-
-#[allow(missing_debug_implementations)]
-pub struct StateLock {
-	pub style: Element,
-	pub mount: FnCmp,
-	pub styles: Rc<RefCell<HashMap<String, String>>>,
-	pub state: State,
-}
-
-impl Default for StateLock {
-	#[allow(clippy::result_unwrap_used)]
-	fn default() -> Self {
-		Self {
-			style: document().create_element("style").unwrap(),
-			mount: FnCmp(Box::new(|_| document().create_element("div").unwrap())),
-			styles: Rc::new(RefCell::new(HashMap::new())),
-			state: State::default(),
-		}
-	}
-}
-
-impl StateLock {
-	fn update(state_rc: &mut StateRc, f: impl Fn(&mut State)) {
-		f(&mut state_rc.borrow_mut().state);
-		dom::update(state_rc);
-	}
-}
-
-pub type StateRc = Rc<RefCell<StateLock>>;
-
-#[allow(missing_debug_implementations)]
-pub struct FnCmp(Box<dyn Fn(&StateRc) -> Element>);
-
-impl FnCmp {
-	fn new(f: impl 'static + Fn(&StateRc) -> Element) -> Self {
-		FnCmp(Box::new(f))
-	}
 }
 
 fn fetch(url: &str) -> PromiseFuture<String> {
@@ -173,11 +137,11 @@ async fn future_main() -> Result<(), Error> {
 fn main() {
 	spawn_local(unwrap_future(future_main()));
 
-	let state_rc: StateRc = StateRc::default();
+	let state_rc: StateRc<MyState> = StateRc::default();
 	{
-		let state_lock: &mut StateLock = &mut state_rc.borrow_mut();
+		let state_lock: &mut StateLock<MyState> = &mut state_rc.borrow_mut();
 
-		let test_div = FnCmp::new(|state_rc: &StateRc| {
+		let test_div = FnCmp::new(|state_rc: &StateRc<MyState>| {
 			let state = &state_rc.borrow().state;
 
 			styled(

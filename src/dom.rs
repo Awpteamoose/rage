@@ -74,13 +74,13 @@ pub fn update_node(parent: &mut Node, old: &mut Option<Node>, new: &Option<Node>
 }
 
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
-pub fn update(state_rc: &crate::StateRc) {
+pub fn update<S: Default>(state_rc: &crate::StateRc<S>) {
 	state_rc.borrow_mut().styles.borrow_mut().clear();
 
 	let new_node = state_rc.borrow().mount.0(state_rc);
 
 	{
-		let crate::StateLock { style, styles, .. }: &mut crate::StateLock = &mut state_rc.borrow_mut();
+		let crate::StateLock { style, styles, .. }: &mut crate::StateLock<S> = &mut state_rc.borrow_mut();
 
 		style.set_text_content(
 			&styles

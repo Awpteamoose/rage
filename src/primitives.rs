@@ -8,9 +8,9 @@ use stdweb::{
 macro_rules! __p {
 	($name: ident) => {
 		#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used, dead_code, non_snake_case)]
-		pub fn $name(
-			state_rc: &StateRc,
-			children: &[FnCmp],
+		pub fn $name<S: Default>(
+			state_rc: &StateRc<S>,
+			children: &[FnCmp<S>],
 			attributes: &HashMap<String, String>,
 			attach_events: impl Fn(&Element),
 		) -> Element {
@@ -66,7 +66,7 @@ __p!(thead);__p!(time);__p!(title);__p!(tr);
 __p!(track);__p!(tspan);__p!(u);__p!(ul);
 __p!(var);__p!(video);__p!(wbr);
 
-impl From<String> for FnCmp {
+impl<S: Default> From<String> for FnCmp<S> {
 	#[allow(clippy::result_unwrap_used)]
 	fn from(s: String) -> Self {
 		FnCmp(Box::new(move |_| {
@@ -77,7 +77,7 @@ impl From<String> for FnCmp {
 	}
 }
 
-impl From<&str> for FnCmp {
+impl<S: Default> From<&str> for FnCmp<S> {
 	#[allow(clippy::result_unwrap_used)]
 	fn from(s: &str) -> Self {
 		let owned = s.to_owned();
