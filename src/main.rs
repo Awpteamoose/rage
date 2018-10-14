@@ -57,6 +57,7 @@
 
 #![allow(unreachable_pub)]
 #![feature(try_from, try_trait, never_type)]
+#![feature(async_await, await_macro, futures_api, pin)]
 
 mod primitives;
 mod styled;
@@ -78,6 +79,11 @@ use stdweb::{
 	web::{document, event, HtmlElement, Node, Element},
 };
 use maplit::*;
+use futures::{join, try_join};
+use stdweb::{PromiseFuture, spawn_local, unwrap_future};
+use stdweb::web::wait;
+use stdweb::web::error::Error;
+use stdweb::unstable::TryInto;
 
 #[derive(Default, Debug)]
 pub struct State {
@@ -113,8 +119,57 @@ pub type StateRc = Rc<RefCell<StateLock>>;
 
 pub struct FnCmp(Box<dyn Fn (&StateRc) -> Element>);
 
+// Converts a JavaScript Promise into a Rust Future
+fn javascript_promise() -> PromiseFuture< u32 > {
+	js!(
+		return new Promise( function ( success, error ) {
+			setTimeout( function () {
+				success( 50 );
+			}, 2000 );
+		} );
+	).try_into().unwrap()
+}
+
+
+async fn print( message: &str ) {
+	// Waits for 2000 milliseconds
+	await!( wait( 2000 ) );
+	console!( log, message );
+}
+
+
+async fn future_main() -> Result< (), Error > {
+	// Runs Futures synchronously
+	await!( print( "Hello" ) );
+	await!( print( "There" ) );
+
+	{
+		let a = print( "Test 1" );
+		let b = print( "Test 2" );
+
+		// Runs multiple Futures in parallel
+		let ( a, b ) = join!( a, b );
+
+		console!( log, "Done", a, b );
+	}
+
+	{
+		let a = javascript_promise();
+		let b = javascript_promise();
+
+		// Runs multiple Futures (which can error) in parallel
+		let ( a, b ) = try_join!( a, b )?;
+
+		console!( log, a, b );
+	}
+
+	Ok( () )
+}
+
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
 fn main() {
+	spawn_local( unwrap_future( future_main() ) );
+
 	let state_rc: StateRc = StateRc::default();
 	{
 		let state_lock: &mut StateLock = &mut state_rc.borrow_mut();

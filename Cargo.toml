@@ -12,9 +12,11 @@ regex = "1.0.5"
 error-chain = "0.12.0"
 matches = "0.1.8"
 maplit = "1.0.1"
-stdweb = "0.4.9"
 serde = "1.0.79"
 serde_derive = "1.0.79"
+# stdweb = { version = "0.4.9", features = ["experimental_features_which_may_break_on_minor_version_bumps", "futures-support", "nightly"] }
+stdweb = { git = "https://github.com/koute/stdweb", features = ["experimental_features_which_may_break_on_minor_version_bumps", "futures-support", "nightly"] }
+futures-preview = "0.3.0-alpha.6"
 
 [profile.dev]
 panic = "abort"
