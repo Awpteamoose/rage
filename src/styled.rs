@@ -5,8 +5,10 @@ use std::{
 };
 use stdweb::web::{Node, Element};
 use stdweb::{
+	traits::*,
 	js, _js_impl, __js_raw_asm,
 	console, __internal_console_unsafe,
+	unstable::TryFrom,
 };
 
 fn hash(s: &str) -> String {
@@ -15,29 +17,11 @@ fn hash(s: &str) -> String {
 	hasher.finish().to_string()
 }
 
-pub fn styled<
-	F: Fn(&Element),
-	P: Fn(
-		&StateRc,
-		&[FnCmp],
-		&HashMap<String, String>,
-		F,
-	) -> Node,
->(f: P, css: String) -> impl Fn(
-		&StateRc,
-		&[FnCmp],
-		&HashMap<String, String>,
-		F,
-) -> Node {
-	move |state_rc: &StateRc, children: &[FnCmp], attributes: &HashMap<String, String>, attach_events: F| -> Node {
-		let attrs = {
-			let class_hash = hash(&css);
-			let mut new_attributes = attributes.clone();
-			let class = format!("styled{}", &class_hash);
-			let _ = new_attributes.insert(String::from("class"), class.clone());
-			let _ = state_rc.borrow().styles.borrow_mut().insert(class, css.clone());
-			new_attributes
-		};
-		f(state_rc, children, &attrs, attach_events)
-	}
+pub fn styled(state_rc: &StateRc, element: Element, css: &str) -> Element {
+	let class_hash = hash(&css);
+	let class = format!("styled{}", &class_hash);
+	let _ = element.set_attribute("class", &class);
+	let _ = state_rc.borrow().styles.borrow_mut().insert(class, css.to_owned());
+
+	element
 }

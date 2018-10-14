@@ -13,7 +13,7 @@ macro_rules! primitive {
 			children: &[FnCmp],
 			attributes: &HashMap<String, String>,
 			attach_events: impl Fn(&Element),
-		) -> Node {
+		) -> Element {
 			let element = document().create_element(stringify!($name)).unwrap();
 
 			for child in children {
@@ -26,7 +26,7 @@ macro_rules! primitive {
 
 			attach_events(&element);
 
-			element.into()
+			element
 		}
 	};
 }
@@ -35,13 +35,21 @@ primitive!(div);
 
 impl From<String> for FnCmp {
 	fn from(s: String) -> Self {
-		FnCmp(Box::new(move |_| document().create_text_node(&s).into()))
+		FnCmp(Box::new(move |_| {
+			let p = document().create_element("p").unwrap();
+			p.set_text_content(&s);
+			p
+		}))
 	}
 }
 
 impl From<&str> for FnCmp {
 	fn from(s: &str) -> Self {
 		let owned = s.to_owned();
-		FnCmp(Box::new(move |_| document().create_text_node(&owned).into()))
+		FnCmp(Box::new(move |_| {
+			let p = document().create_element("p").unwrap();
+			p.set_text_content(&owned);
+			p
+		}))
 	}
 }

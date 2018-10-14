@@ -85,7 +85,7 @@ pub struct State {
 }
 
 pub struct StateLock {
-	pub style: HtmlElement,
+	pub style: Element,
 	pub mount: FnCmp,
 	pub styles: Rc<RefCell<HashMap<String, String>>>,
 	pub state: State,
@@ -94,8 +94,8 @@ pub struct StateLock {
 impl Default for StateLock {
 	fn default() -> Self {
 		Self {
-			style: HtmlElement::try_from(document().create_element("style").unwrap()).unwrap(),
-			mount: FnCmp(Box::new(|_| Node::from(document().create_element("div").unwrap()))),
+			style: document().create_element("style").unwrap(),
+			mount: FnCmp(Box::new(|_| document().create_element("div").unwrap())),
 			styles: Rc::new(RefCell::new(HashMap::new())),
 			state: State::default(),
 		}
@@ -111,8 +111,9 @@ impl StateLock {
 
 pub type StateRc = Rc<RefCell<StateLock>>;
 
-pub struct FnCmp(Box<dyn Fn (&StateRc) -> Node>);
+pub struct FnCmp(Box<dyn Fn (&StateRc) -> Element>);
 
+#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
 fn main() {
 	let state_rc: StateRc = StateRc::default();
 	{
@@ -127,10 +128,10 @@ fn main() {
 		let test_div = FnCmp(Box::new(|state_rc: &StateRc| {
 			let state = &state_rc.borrow().state;
 
-			styled(div, format!(r#"font-size: {}px;"#, (state.some_value + 5) * 10))(
+			styled(&state_rc, div(
 				&state_rc,
 				&children![
-					"Shitty\n",
+					"Shitty",
 					format!("more {}", state.some_value),
 				],
 				&hashmap![],
@@ -151,12 +152,12 @@ fn main() {
 					//     });
 					// });
 				},
-			)
+			), &format!(r#"font-size: {}px;"#, (state.some_value + 5) * 10))
 		}));
 
 		let _ = std::mem::replace(&mut state_lock.mount, test_div);
 
-		document().head().expect("no head").append_child(&state_lock.style);
+		document().head().unwrap().append_child(&state_lock.style);
 	}
 
 	dom::update(&state_rc);

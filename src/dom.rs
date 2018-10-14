@@ -86,5 +86,5 @@ pub fn update(state_rc: &crate::StateRc) {
 	let body = document().body().unwrap();
 	let mut first = body.child_nodes().item(0);
 
-	update_node(&mut Node::from(body), &mut first, &Some(new_node))
+	update_node(&mut Node::from(body), &mut first, &Some(Node::from(new_node)))
 }
