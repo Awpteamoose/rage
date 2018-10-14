@@ -111,7 +111,7 @@ impl StateLock {
 
 pub type StateRc = Rc<RefCell<StateLock>>;
 
-pub struct FnCmp(Box<dyn Fn (StateRc) -> Node>);
+pub struct FnCmp(Box<dyn Fn (&StateRc) -> Node>);
 
 fn main() {
 	let state_rc: StateRc = StateRc::default();
@@ -124,7 +124,7 @@ fn main() {
 			};
 		};
 
-		let test_div = FnCmp(Box::new(|state_rc: StateRc| {
+		let test_div = FnCmp(Box::new(|state_rc: &StateRc| {
 			let state = &state_rc.borrow().state;
 
 			styled(div, format!(r#"font-size: {}px;"#, (state.some_value + 5) * 10))(

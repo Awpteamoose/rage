@@ -77,7 +77,7 @@ pub fn update_node(parent: &mut Node, old: &mut Option<Node>, new: &Option<Node>
 pub fn update(state_rc: &crate::StateRc) {
 	state_rc.borrow_mut().styles.borrow_mut().clear();
 
-	let new_node = state_rc.borrow().mount.0(Rc::clone(state_rc));
+	let new_node = state_rc.borrow().mount.0(state_rc);
 
 	{
 		let crate::StateLock { style, styles, .. }: &mut crate::StateLock = &mut state_rc.borrow_mut();

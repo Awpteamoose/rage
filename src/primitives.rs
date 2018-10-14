@@ -16,7 +16,7 @@ macro_rules! primitive {
 			let element = document().create_element(stringify!($name)).expect("unreachable");
 
 			for child in children {
-				element.append_child(&child.0(Rc::clone(&state_rc)));
+				element.append_child(&child.0(&state_rc));
 			}
 
 			for (name, value) in attributes.iter() {
