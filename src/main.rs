@@ -60,22 +60,24 @@
 
 mod primitives;
 mod styled;
+mod dom;
 
-use self::{primitives::*, styled::*};
+use self::{primitives::*, styled::styled};
 use std::{
 	cell::RefCell,
 	collections::{hash_map::DefaultHasher, HashMap},
 	hash::Hasher,
 	rc::Rc,
+	any::Any,
 };
 use stdweb::{
 	js, _js_impl, __js_raw_asm,
 	console, __internal_console_unsafe,
 	traits::*,
 	unstable::TryFrom,
-	web::{document, event, HtmlElement, Node},
+	web::{document, event, HtmlElement, Node, Element},
 };
-// use maplit::*;
+use maplit::*;
 
 #[derive(Default, Debug)]
 pub struct State {
@@ -83,19 +85,17 @@ pub struct State {
 }
 
 pub struct StateLock {
-	root: Node,
-	style: HtmlElement,
-	mount: Rc<RefCell<Vec<Box<dyn Component>>>>,
-	styles: Rc<RefCell<HashMap<String, String>>>,
-	state: State,
+	pub style: HtmlElement,
+	pub mount: FnCmp,
+	pub styles: Rc<RefCell<HashMap<String, String>>>,
+	pub state: State,
 }
 
 impl Default for StateLock {
 	fn default() -> Self {
 		Self {
-			root: Node::from(document().create_element("div").unwrap()),
 			style: HtmlElement::try_from(document().create_element("style").unwrap()).unwrap(),
-			mount: Rc::new(RefCell::new(Vec::new())),
+			mount: FnCmp(Box::new(|_| Node::from(document().create_element("div").unwrap()))),
 			styles: Rc::new(RefCell::new(HashMap::new())),
 			state: State::default(),
 		}
@@ -103,77 +103,15 @@ impl Default for StateLock {
 }
 
 impl StateLock {
-	fn update(arc: &mut StateRc, f: impl Fn(&mut State)) {
-		f(&mut arc.borrow_mut().state);
-		update_dom(arc);
+	fn update(state_rc: &mut StateRc, f: impl Fn(&mut State)) {
+		f(&mut state_rc.borrow_mut().state);
+		dom::update(state_rc);
 	}
 }
 
 pub type StateRc = Rc<RefCell<StateLock>>;
 
-pub trait Component {
-	fn render(&mut self, _: StateRc) -> Node;
-	fn children(&mut self) -> &mut Vec<Box<dyn Component>> { unimplemented!() }
-	fn attributes(&mut self) -> &mut HashMap<String, String> { unimplemented!() }
-}
-
-fn update_node(parent: &mut Node, old: &mut Option<Node>, new: &Option<Node>) {
-	match (old, new) {
-		(None, Some(node)) => {
-			parent.append_child(node);
-		},
-		(Some(node), None) => {
-			let _ = parent.remove_child(node).unwrap();
-		},
-		(Some(old_node), Some(new_node)) if !Node::is_equal_node(old_node, new_node) => {
-			if !old_node.has_child_nodes() || !new_node.has_child_nodes() {
-				let _ = parent.replace_child(new_node, old_node).unwrap();
-			} else {
-				let old_node_children = old_node.child_nodes();
-				let new_node_children = new_node.child_nodes();
-				let min = u32::min(old_node_children.len(), new_node_children.len());
-
-				for i in 0 .. min {
-					update_node(old_node, &mut old_node_children.item(i), &new_node_children.item(i));
-				}
-
-				// less nodes in new than old -> remove nodes
-				for i in min .. old_node_children.len() {
-					let _ = parent.remove_child(&old_node_children.item(i).unwrap()).unwrap();
-				}
-
-				// less nodes in old than new -> add nodes
-				for i in min .. new_node_children.len() {
-					parent.append_child(&new_node_children.item(i).unwrap());
-				}
-			}
-		},
-		_ => (),
-	}
-}
-
-fn update_dom(state: &StateRc) {
-	let mut nodes = Vec::new();
-	for cmp in state.borrow().mount.borrow_mut().iter_mut() {
-		nodes.push(cmp.render(Rc::clone(&state)));
-	}
-
-	let StateLock { style, root, styles, .. } = &mut state.borrow_mut() as &mut StateLock;
-
-	styles.borrow_mut().clear();
-
-	style.set_text_content(&styles.borrow_mut().iter().fold(String::new(), |acc, (class, style)| {
-		acc + &format!(".{} {{ {} }}", class, style)
-	}));
-
-	let root_children = root.child_nodes();
-
-	let mut with_index: Vec<_> = nodes.into_iter().enumerate().collect();
-
-	while let Some((index, node)) = with_index.pop() {
-		update_node(root, &mut root_children.item(index as u32), &Some(node));
-	}
-}
+pub struct FnCmp(Box<dyn Fn (&StateRc) -> Node>);
 
 fn main() {
 	let state_rc: StateRc = StateRc::default();
@@ -182,31 +120,44 @@ fn main() {
 
 		macro_rules! children {
 			($($e: expr),+$(,)*) => {
-				vec![$(Box::new($e),)+]
+				[$($e.into(),)+]
 			};
 		};
 
-		let mut new_state = Rc::clone(&state_rc);
-		let test_div = Div::new()
-			.children(children![
-				Div::new().children(children!["div1"]),
-				Div::new().children(children!["div2"]),
-				Div::new()
-					.children(children![
-						|state: &State| format!("more {}", state.some_value),
-					])
-					.on_click(move |_| {
+		let test_div = FnCmp(Box::new(|state_rc: &StateRc| {
+			let state = &state_rc.borrow().state;
+
+			styled(div, format!(r#"font-size: {}px;"#, (state.some_value + 5) * 10))(
+				&state_rc,
+				&children![
+					"Shitty\n",
+					format!("more {}", state.some_value),
+				],
+				&hashmap![],
+				|e| {
+					let mut new_state = Rc::clone(&state_rc);
+					let _ = e.add_event_listener(move |_: event::ClickEvent| {
+						console!(log, "clicky");
 						StateLock::update(&mut new_state, move |s| {
 							s.some_value += 1;
 						});
-					}),
-			]);
+					});
 
-		state_lock.mount.borrow_mut().push(Box::new(test_div));
+					// let mut new_state = Rc::clone(&state_rc);
+					// let _ = e.add_event_listener(move |_: event::MouseEnterEvent| {
+					//     console!(log, "mouse enter");
+					//     StateLock::update(&mut new_state, move |s| {
+					//         s.some_value -= 1;
+					//     });
+					// });
+				},
+			)
+		}));
+
+		let _ = std::mem::replace(&mut state_lock.mount, test_div);
 
 		document().head().expect("no head").append_child(&state_lock.style);
-		document().body().expect("no body").append_child(&state_lock.root);
 	}
 
-	update_dom(&state_rc);
+	dom::update(&state_rc);
 }
