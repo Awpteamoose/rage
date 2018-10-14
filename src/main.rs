@@ -120,17 +120,10 @@ pub type StateRc = Rc<RefCell<StateLock>>;
 
 pub struct FnCmp(Box<dyn Fn(&StateRc) -> Element>);
 
-// Converts a JavaScript Promise into a Rust Future
-fn javascript_promise() -> PromiseFuture<u32> {
-	js!(
-		return new Promise( function ( success, error ) {
-			setTimeout( function () {
-				success( 50 );
-			}, 2000 );
-		} );
-	)
-	.try_into()
-	.unwrap()
+fn fetch(url: &str) -> PromiseFuture<String> {
+	js!(return fetch(@{url}).then((r)=>r.text());)
+		.try_into()
+		.unwrap()
 }
 
 async fn print(message: &str) {
@@ -155,8 +148,8 @@ async fn future_main() -> Result<(), Error> {
 	}
 
 	{
-		let a = javascript_promise();
-		let b = javascript_promise();
+		let a = fetch("https://logcraft.grdigital.co.uk/version");
+		let b = fetch("https://logcraft.grdigital.co.uk/version");
 
 		// Runs multiple Futures (which can error) in parallel
 		let (a, b) = try_join!(a, b)?;
