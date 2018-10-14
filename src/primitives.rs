@@ -4,6 +4,7 @@ use stdweb::{
 	traits::*,
 	web::{document, Element, Node},
 };
+use maplit::*;
 
 macro_rules! primitive {
 	($name: ident) => {
@@ -52,4 +53,19 @@ impl From<&str> for FnCmp {
 			p
 		}))
 	}
+}
+
+macro_rules! children {
+	($($e: expr),+$(,)*) => {
+		&[$($e.into(),)+]
+	};
+}
+
+macro_rules! attrs {
+	() => {
+		&hashmap![]
+	};
+	($($e: expr),+$(,)*) => {
+		&hashmap![$($e.into(),)+]
+	};
 }

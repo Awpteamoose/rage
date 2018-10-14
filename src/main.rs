@@ -54,13 +54,12 @@
 ))]
 #![feature(tool_lints)]
 #![recursion_limit = "128"]
-
 #![allow(unreachable_pub)]
 #![feature(try_from, try_trait, never_type)]
 #![feature(async_await, await_macro, futures_api, pin)]
 
 mod dom;
-mod primitives;
+#[macro_use] mod primitives;
 mod styled;
 
 use self::{primitives::*, styled::styled};
@@ -150,9 +149,9 @@ async fn future_main() -> Result<(), Error> {
 		let b = print("Test 2");
 
 		// Runs multiple Futures in parallel
-		let (a, b) = join!(a, b);
+		join!(a, b);
 
-		console!(log, "Done", a, b);
+		console!(log, "Done");
 	}
 
 	{
@@ -176,12 +175,6 @@ fn main() {
 	{
 		let state_lock: &mut StateLock = &mut state_rc.borrow_mut();
 
-		macro_rules! children {
-			($($e: expr),+$(,)*) => {
-				[$($e.into(),)+]
-			};
-		};
-
 		let test_div = FnCmp(Box::new(|state_rc: &StateRc| {
 			let state = &state_rc.borrow().state;
 
@@ -189,8 +182,8 @@ fn main() {
 				&state_rc,
 				div(
 					&state_rc,
-					&children!["Shitty ", format!("more {}", state.some_value),],
-					&hashmap![],
+					children!["Shitty ", format!("more {}", state.some_value)],
+					attrs![],
 					|e| {
 						let mut new_state = Rc::clone(&state_rc);
 						let _ = e.add_event_listener(move |_: event::ClickEvent| {
@@ -212,8 +205,7 @@ fn main() {
 						});
 					},
 				),
-				&format!(
-					r#"
+				&format!(r#"
 					font-size: {size}px;
 					user-select: none;
 				"#,
