@@ -59,31 +59,33 @@
 #![feature(try_from, try_trait, never_type)]
 #![feature(async_await, await_macro, futures_api, pin)]
 
+mod dom;
 mod primitives;
 mod styled;
-mod dom;
 
 use self::{primitives::*, styled::styled};
+use futures::{join, try_join};
+use maplit::*;
 use std::{
+	any::Any,
 	cell::RefCell,
 	collections::{hash_map::DefaultHasher, HashMap},
 	hash::Hasher,
 	rc::Rc,
-	any::Any,
 };
 use stdweb::{
-	js, _js_impl, __js_raw_asm,
-	console, __internal_console_unsafe,
+	__internal_console_unsafe,
+	__js_raw_asm,
+	_js_impl,
+	console,
+	js,
+	spawn_local,
 	traits::*,
-	unstable::TryFrom,
-	web::{document, event, HtmlElement, Node, Element},
+	unstable::{TryFrom, TryInto},
+	unwrap_future,
+	web::{document, error::Error, event, wait, Element, HtmlElement, Node},
+	PromiseFuture,
 };
-use maplit::*;
-use futures::{join, try_join};
-use stdweb::{PromiseFuture, spawn_local, unwrap_future};
-use stdweb::web::wait;
-use stdweb::web::error::Error;
-use stdweb::unstable::TryInto;
 
 #[derive(Default, Debug)]
 pub struct State {
@@ -117,40 +119,40 @@ impl StateLock {
 
 pub type StateRc = Rc<RefCell<StateLock>>;
 
-pub struct FnCmp(Box<dyn Fn (&StateRc) -> Element>);
+pub struct FnCmp(Box<dyn Fn(&StateRc) -> Element>);
 
 // Converts a JavaScript Promise into a Rust Future
-fn javascript_promise() -> PromiseFuture< u32 > {
+fn javascript_promise() -> PromiseFuture<u32> {
 	js!(
 		return new Promise( function ( success, error ) {
 			setTimeout( function () {
 				success( 50 );
 			}, 2000 );
 		} );
-	).try_into().unwrap()
+	)
+	.try_into()
+	.unwrap()
 }
 
-
-async fn print( message: &str ) {
+async fn print(message: &str) {
 	// Waits for 2000 milliseconds
-	await!( wait( 2000 ) );
-	console!( log, message );
+	await!(wait(2000));
+	console!(log, message);
 }
 
-
-async fn future_main() -> Result< (), Error > {
+async fn future_main() -> Result<(), Error> {
 	// Runs Futures synchronously
-	await!( print( "Hello" ) );
-	await!( print( "There" ) );
+	await!(print("Hello"));
+	await!(print("There"));
 
 	{
-		let a = print( "Test 1" );
-		let b = print( "Test 2" );
+		let a = print("Test 1");
+		let b = print("Test 2");
 
 		// Runs multiple Futures in parallel
-		let ( a, b ) = join!( a, b );
+		let (a, b) = join!(a, b);
 
-		console!( log, "Done", a, b );
+		console!(log, "Done", a, b);
 	}
 
 	{
@@ -158,17 +160,17 @@ async fn future_main() -> Result< (), Error > {
 		let b = javascript_promise();
 
 		// Runs multiple Futures (which can error) in parallel
-		let ( a, b ) = try_join!( a, b )?;
+		let (a, b) = try_join!(a, b)?;
 
-		console!( log, a, b );
+		console!(log, a, b);
 	}
 
-	Ok( () )
+	Ok(())
 }
 
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
 fn main() {
-	spawn_local( unwrap_future( future_main() ) );
+	spawn_local(unwrap_future(future_main()));
 
 	let state_rc: StateRc = StateRc::default();
 	{
@@ -183,37 +185,41 @@ fn main() {
 		let test_div = FnCmp(Box::new(|state_rc: &StateRc| {
 			let state = &state_rc.borrow().state;
 
-			styled(&state_rc, div(
+			styled(
 				&state_rc,
-				&children![
-					"Shitty ",
-					format!("more {}", state.some_value),
-				],
-				&hashmap![],
-				|e| {
-					let mut new_state = Rc::clone(&state_rc);
-					let _ = e.add_event_listener(move |_: event::ClickEvent| {
-						console!(log, "clicky");
-						StateLock::update(&mut new_state, move |s| {
-							s.some_value += 1;
+				div(
+					&state_rc,
+					&children!["Shitty ", format!("more {}", state.some_value),],
+					&hashmap![],
+					|e| {
+						let mut new_state = Rc::clone(&state_rc);
+						let _ = e.add_event_listener(move |_: event::ClickEvent| {
+							console!(log, "clicky");
+							StateLock::update(&mut new_state, move |s| {
+								s.some_value += 1;
+							});
 						});
-					});
 
-					let mut new_state = Rc::clone(&state_rc);
-					let _ = e.add_event_listener(move |e: event::AuxClickEvent| {
-						if e.button() != event::MouseButton::Right { return; }
-						console!(log, "rick clicky");
-						StateLock::update(&mut new_state, move |s| {
-							s.some_value -= 1;
+						let mut new_state = Rc::clone(&state_rc);
+						let _ = e.add_event_listener(move |e: event::AuxClickEvent| {
+							if e.button() != event::MouseButton::Right {
+								return;
+							}
+							console!(log, "rick clicky");
+							StateLock::update(&mut new_state, move |s| {
+								s.some_value -= 1;
+							});
 						});
-					});
-				},
-			), &format!(r#"
+					},
+				),
+				&format!(
+					r#"
 					font-size: {size}px;
 					user-select: none;
 				"#,
-				size=(state.some_value + 5) * 10
-			))
+					size = (state.some_value + 5) * 10
+				),
+			)
 		}));
 
 		let _ = std::mem::replace(&mut state_lock.mount, test_div);

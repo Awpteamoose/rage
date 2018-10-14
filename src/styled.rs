@@ -1,14 +1,17 @@
-use crate::{State, StateRc, FnCmp};
+use crate::{FnCmp, State, StateRc};
 use std::{
 	collections::{hash_map::DefaultHasher, HashMap},
 	hash::Hasher,
 };
-use stdweb::web::{Node, Element};
 use stdweb::{
+	__internal_console_unsafe,
+	__js_raw_asm,
+	_js_impl,
+	console,
+	js,
 	traits::*,
-	js, _js_impl, __js_raw_asm,
-	console, __internal_console_unsafe,
 	unstable::TryFrom,
+	web::{Element, Node},
 };
 
 fn hash(s: &str) -> String {

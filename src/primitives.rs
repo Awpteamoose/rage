@@ -1,8 +1,8 @@
-use crate::{StateRc, FnCmp};
+use crate::{FnCmp, StateRc};
 use std::collections::HashMap;
 use stdweb::{
 	traits::*,
-	web::{document, Node, Element},
+	web::{document, Element, Node},
 };
 
 macro_rules! primitive {

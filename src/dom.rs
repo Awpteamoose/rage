@@ -1,7 +1,7 @@
 use stdweb::{
 	traits::*,
-	web::{document, Node, Element},
 	unstable::TryFrom,
+	web::{document, Element, Node},
 };
 
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
@@ -33,9 +33,13 @@ fn attr_updates(old: &Node, new: &Node) -> Element {
 pub fn update_node(parent: &mut Node, old: &mut Option<Node>, new: &Option<Node>) {
 	match (old, new) {
 		(None, Some(new_node)) => parent.append_child(new_node),
-		(Some(old_node), None) => { let _ = parent.remove_child(old_node); },
-		(Some(old_node), Some(new_node))  => {
-			if Node::is_equal_node(old_node, new_node) { return; }
+		(Some(old_node), None) => {
+			let _ = parent.remove_child(old_node);
+		},
+		(Some(old_node), Some(new_node)) => {
+			if Node::is_equal_node(old_node, new_node) {
+				return;
+			}
 
 			if !old_node.has_child_nodes() || !new_node.has_child_nodes() {
 				let _ = parent.replace_child(new_node, old_node);
@@ -50,17 +54,17 @@ pub fn update_node(parent: &mut Node, old: &mut Option<Node>, new: &Option<Node>
 				let new_node_children = new_node.child_nodes();
 				let min = u32::min(old_node_children.len(), new_node_children.len());
 
-				for i in 0 .. min {
+				for i in 0..min {
 					update_node(old_node, &mut old_node_children.item(i), &new_node_children.item(i));
 				}
 
 				// less nodes in new than old -> remove nodes
-				for i in min .. old_node_children.len() {
+				for i in min..old_node_children.len() {
 					let _ = parent.remove_child(&old_node_children.item(i).unwrap());
 				}
 
 				// less nodes in old than new -> add nodes
-				for i in min .. new_node_children.len() {
+				for i in min..new_node_children.len() {
 					parent.append_child(&new_node_children.item(i).unwrap());
 				}
 			}
@@ -78,9 +82,12 @@ pub fn update(state_rc: &crate::StateRc) {
 	{
 		let crate::StateLock { style, styles, .. }: &mut crate::StateLock = &mut state_rc.borrow_mut();
 
-		style.set_text_content(&styles.borrow_mut().iter().fold(String::new(), |acc, (class, style)| {
-			acc + &format!(".{} {{ {} }}", class, style)
-		}));
+		style.set_text_content(
+			&styles
+				.borrow_mut()
+				.iter()
+				.fold(String::new(), |acc, (class, style)| acc + &format!(".{} {{ {} }}", class, style)),
+		);
 	}
 
 	let body = document().body().unwrap();
