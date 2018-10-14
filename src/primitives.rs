@@ -95,6 +95,9 @@ impl From<Element> for Cmp {
 }
 
 macro_rules! children {
+	() => {
+		&[]
+	};
 	($($e: expr),+$(,)*) => {
 		&[$($e.into(),)+]
 	};

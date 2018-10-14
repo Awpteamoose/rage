@@ -68,7 +68,13 @@ use self::styled::styled;
 use crate::cmp::*;
 use futures::{join, try_join};
 use maplit::*;
-use std::rc::Rc;
+use std::{
+	rc::Rc,
+	collections::{
+		HashMap,
+		HashSet,
+	},
+};
 use stdweb::{
 	__internal_console_unsafe,
 	__js_raw_asm,
@@ -79,12 +85,15 @@ use stdweb::{
 	traits::*,
 	unstable::TryInto,
 	unwrap_future,
-	web::{error::Error, event, wait},
+	web::{error::Error, event, wait, Element},
 	PromiseFuture,
 };
 
+type Cells = HashSet<(u32, u32)>;
+
 #[derive(Default, Debug)]
 pub struct MyState {
+	cells: Cells,
 	some_value: i32,
 }
 
@@ -130,44 +139,78 @@ async fn future_main() -> Result<(), Error> {
 
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
 fn main() {
-	spawn_local(unwrap_future(future_main()));
+	// spawn_local(unwrap_future(future_main()));
 
 	let state_rc: StateRc<MyState> = StateRc::default();
+
+
+	let divs = {
+		let mut divs = Vec::new();
+
+		for x in 0..5 {
+			for y in 0..5 {
+				let state_rc = Rc::clone(&state_rc);
+				divs.push(Cmp::new(move || -> Element { primitives::div(
+					children![],
+					attrs![
+						"class" => styled(&state_rc, &format!(r#"
+							border: 1px solid black;
+							background-color: {color};
+							box-sizing: content-box;
+						"#,
+							color = if state_rc.borrow().state.cells.get(&(x, y)).is_some() { "black" } else { "white" }
+						)),
+					],
+					|e| {
+						let mut new_state = Rc::clone(&state_rc);
+						let _ = e.add_event_listener(move |_: event::ClickEvent| {
+							StateLock::update(&mut new_state, move |s| {
+								console!(log, format!("clicked ({}, {})", &x, &y));
+								if s.cells.get(&(x, y)).is_some() { let _ = s.cells.remove(&(x, y)); }
+								else { let _ = s.cells.insert((x, y)); }
+							});
+						});
+					},
+				)}));
+			}
+		}
+
+		divs
+	};
 
 	dom::mount(
 		Rc::clone(&state_rc),
 		Cmp::new(move || {
 			let state = &state_rc.borrow().state;
-			let inner = primitives::div(children!["Inner text"], attrs![], |_| {});
 			primitives::div(
-				children!["Shitty ", inner, format!("more {}", state.some_value)],
+				&divs,
 				attrs![
-				"class" => styled(&state_rc, &format!(r#"
-					font-size: {size}px;
+				"class" => styled(&state_rc, r#"
 					user-select: none;
-				"#,
-					size = (state.some_value + 5) * 10
-				)),
+					display: grid;
+					grid-template-columns: repeat(5, 50px);
+					grid-template-rows: repeat(50, 50px);
+				"#),
 			],
 				|e| {
-					let mut new_state = Rc::clone(&state_rc);
-					let _ = e.add_event_listener(move |_: event::ClickEvent| {
-						console!(log, "clicky");
-						StateLock::update(&mut new_state, move |s| {
-							s.some_value += 1;
-						});
-					});
+					// let mut new_state = Rc::clone(&state_rc);
+					// let _ = e.add_event_listener(move |_: event::ClickEvent| {
+					//     console!(log, "clicky");
+					//     StateLock::update(&mut new_state, move |s| {
+					//         s.some_value += 1;
+					//     });
+					// });
 
-					let mut new_state = Rc::clone(&state_rc);
-					let _ = e.add_event_listener(move |e: event::AuxClickEvent| {
-						if e.button() != event::MouseButton::Right {
-							return;
-						}
-						console!(log, "rick clicky");
-						StateLock::update(&mut new_state, move |s| {
-							s.some_value -= 1;
-						});
-					});
+					// let mut new_state = Rc::clone(&state_rc);
+					// let _ = e.add_event_listener(move |e: event::AuxClickEvent| {
+					//     if e.button() != event::MouseButton::Right {
+					//         return;
+					//     }
+					//     console!(log, "rick clicky");
+					//     StateLock::update(&mut new_state, move |s| {
+					//         s.some_value -= 1;
+					//     });
+					// });
 				},
 			)
 		}),
