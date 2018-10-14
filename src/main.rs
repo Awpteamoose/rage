@@ -62,19 +62,20 @@ mod primitives;
 mod styled;
 mod dom;
 
-use self::{primitives::*, styled::*};
+use self::{primitives::*, styled::styled};
 use std::{
 	cell::RefCell,
 	collections::{hash_map::DefaultHasher, HashMap},
 	hash::Hasher,
 	rc::Rc,
+	any::Any,
 };
 use stdweb::{
 	js, _js_impl, __js_raw_asm,
 	console, __internal_console_unsafe,
 	traits::*,
 	unstable::TryFrom,
-	web::{document, event, HtmlElement, Node},
+	web::{document, event, HtmlElement, Node, Element},
 };
 use maplit::*;
 
@@ -110,89 +111,46 @@ impl StateLock {
 
 pub type StateRc = Rc<RefCell<StateLock>>;
 
-pub trait Component {
-	fn render(&mut self, _: StateRc) -> Node;
-	fn children(&mut self) -> &mut Vec<Box<dyn Component>> { unimplemented!() }
-	fn attributes(&mut self) -> &mut HashMap<String, String> { unimplemented!() }
-}
-
 pub struct FnCmp(Box<dyn Fn (StateRc) -> Node>);
-
-fn div_f<T: event::ConcreteEvent, F: FnMut(T) + 'static>(
-	state_rc: &StateRc,
-	children: &[FnCmp],
-	attributes: &HashMap<String, String>,
-	listeners: Vec<F>,
-) -> Node {
-	let element = document().create_element("div").expect("unreachable");
-
-	for child in children {
-		element.append_child(&child.0(Rc::clone(&state_rc)));
-	}
-
-	for (name, value) in attributes.iter() {
-		element.set_attribute(name, value).expect("unreachable");
-	}
-
-	for cb in listeners.into_iter() {
-		let _ = element.add_event_listener(cb);
-	}
-
-	element.into()
-}
 
 fn main() {
 	let state_rc: StateRc = StateRc::default();
 	{
 		let state_lock: &mut StateLock = &mut state_rc.borrow_mut();
-		// let mut new_state = Rc::clone(&state_rc);
-
-		// macro_rules! children {
-		//     ($($e: expr),+$(,)*) => {
-		//         vec![$(Box::new($e),)+]
-		//     };
-		// };
-
-		// let test_div = Div::new()
-		//     .children(children![
-		//         Div::new().children(children!["div1"]),
-		//         Div::new().children(children!["div2"]),
-		//         Div::new()
-		//             .children(children![
-		//                 |state: &State| format!("more {}", state.some_value),
-		//             ])
-		//             .on_click(move |_| {
-		//                 StateLock::update(&mut new_state, move |s| {
-		//                     s.some_value += 1;
-		//                 });
-		//             }),
-		//     ]);
 
 		macro_rules! children {
 			($($e: expr),+$(,)*) => {
 				[$($e.into(),)+]
 			};
 		};
-		let test_div = FnCmp(Box::new(|state_rc: StateRc| {
-			let mut new_state = Rc::clone(&state_rc);
-			let state_lock = &state_rc.borrow() as &StateLock;
-			let state = &state_lock.state;
 
-			div_f(
+		let test_div = FnCmp(Box::new(|state_rc: StateRc| {
+			let state = &state_rc.borrow().state;
+
+			styled(div, r#"color: red;"#.to_owned())(
 				&state_rc,
 				&children![
 					"Shitty\n",
 					format!("more {}", state.some_value),
 				],
 				&hashmap![],
-				vec![
-					move |_: event::ClickEvent| {
+				|e| {
+					let mut new_state = Rc::clone(&state_rc);
+					let _ = e.add_event_listener(move |_: event::ClickEvent| {
 						console!(log, "clicky");
 						StateLock::update(&mut new_state, move |s| {
 							s.some_value += 1;
 						});
-					},
-				],
+					});
+
+					let mut new_state = Rc::clone(&state_rc);
+					let _ = e.add_event_listener(move |_: event::MouseEnterEvent| {
+						console!(log, "mouse enter");
+						StateLock::update(&mut new_state, move |s| {
+							s.some_value -= 1;
+						});
+					});
+				},
 			)
 		}));
 

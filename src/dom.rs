@@ -2,6 +2,8 @@ use std::rc::Rc;
 use stdweb::{
 	traits::*,
 	web::{document, Node},
+	js, _js_impl, __js_raw_asm,
+	console, __internal_console_unsafe,
 };
 
 pub fn update_node(parent: &mut Node, old: &mut Option<Node>, new: &Option<Node>) {
@@ -40,21 +42,23 @@ pub fn update_node(parent: &mut Node, old: &mut Option<Node>, new: &Option<Node>
 }
 
 pub fn update(state_rc: &crate::StateRc) {
+	state_rc.borrow_mut().styles.borrow_mut().clear();
+
+	let new_node = state_rc.borrow().mount.0(Rc::clone(state_rc));
+
 	{
 		let crate::StateLock { style, styles, .. }: &mut crate::StateLock = &mut state_rc.borrow_mut();
-
-		styles.borrow_mut().clear();
 
 		style.set_text_content(&styles.borrow_mut().iter().fold(String::new(), |acc, (class, style)| {
 			acc + &format!(".{} {{ {} }}", class, style)
 		}));
+
+		console!(log, format!("{:?}", &styles.borrow_mut()));
 	}
 
-	let new_state_rc = Rc::clone(state_rc);
-	let crate::StateLock { mount, .. }: &crate::StateLock = &state_rc.borrow();
 
 	let body = document().body().unwrap();
 	let mut first = body.child_nodes().item(0);
 
-	update_node(&mut Node::from(body), &mut first, &Some(mount.0(new_state_rc)))
+	update_node(&mut Node::from(body), &mut first, &Some(new_node))
 }
