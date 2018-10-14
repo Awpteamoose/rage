@@ -36,7 +36,7 @@ primitive!(div);
 impl From<String> for FnCmp {
 	fn from(s: String) -> Self {
 		FnCmp(Box::new(move |_| {
-			let p = document().create_element("p").unwrap();
+			let p = document().create_element("span").unwrap();
 			p.set_text_content(&s);
 			p
 		}))
@@ -47,7 +47,7 @@ impl From<&str> for FnCmp {
 	fn from(s: &str) -> Self {
 		let owned = s.to_owned();
 		FnCmp(Box::new(move |_| {
-			let p = document().create_element("p").unwrap();
+			let p = document().create_element("span").unwrap();
 			p.set_text_content(&owned);
 			p
 		}))

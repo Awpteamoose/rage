@@ -131,7 +131,7 @@ fn main() {
 			styled(&state_rc, div(
 				&state_rc,
 				&children![
-					"Shitty",
+					"Shitty ",
 					format!("more {}", state.some_value),
 				],
 				&hashmap![],
@@ -144,15 +144,20 @@ fn main() {
 						});
 					});
 
-					// let mut new_state = Rc::clone(&state_rc);
-					// let _ = e.add_event_listener(move |_: event::MouseEnterEvent| {
-					//     console!(log, "mouse enter");
-					//     StateLock::update(&mut new_state, move |s| {
-					//         s.some_value -= 1;
-					//     });
-					// });
+					let mut new_state = Rc::clone(&state_rc);
+					let _ = e.add_event_listener(move |_: event::MouseEnterEvent| {
+						console!(log, "mouse enter");
+						StateLock::update(&mut new_state, move |s| {
+							s.some_value -= 1;
+						});
+					});
 				},
-			), &format!(r#"font-size: {}px;"#, (state.some_value + 5) * 10))
+			), &format!(r#"
+					font-size: {size}px;
+					user-select: none;
+				"#,
+				size=(state.some_value + 5) * 10
+			))
 		}));
 
 		let _ = std::mem::replace(&mut state_lock.mount, test_div);
