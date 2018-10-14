@@ -145,8 +145,9 @@ fn main() {
 					});
 
 					let mut new_state = Rc::clone(&state_rc);
-					let _ = e.add_event_listener(move |_: event::MouseEnterEvent| {
-						console!(log, "mouse enter");
+					let _ = e.add_event_listener(move |e: event::AuxClickEvent| {
+						if e.button() != event::MouseButton::Right { return; }
+						console!(log, "rick clicky");
 						StateLock::update(&mut new_state, move |s| {
 							s.some_value -= 1;
 						});
