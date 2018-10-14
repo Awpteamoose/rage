@@ -1,26 +1,27 @@
-use crate::{StateRc, State, FnCmp};
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use crate::{StateRc, FnCmp};
+use std::collections::HashMap;
 use stdweb::{
 	traits::*,
-	web::{document, event, HtmlElement, Node, Element},
+	web::{document, Node, Element},
 };
 
 macro_rules! primitive {
 	($name: ident) => {
+		#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
 		pub fn $name(
 			state_rc: &StateRc,
 			children: &[FnCmp],
 			attributes: &HashMap<String, String>,
 			attach_events: impl Fn(&Element),
 		) -> Node {
-			let element = document().create_element(stringify!($name)).expect("unreachable");
+			let element = document().create_element(stringify!($name)).unwrap();
 
 			for child in children {
 				element.append_child(&child.0(&state_rc));
 			}
 
 			for (name, value) in attributes.iter() {
-				element.set_attribute(name, value).expect("unreachable");
+				element.set_attribute(name, value).unwrap();
 			}
 
 			attach_events(&element);

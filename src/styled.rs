@@ -29,7 +29,6 @@ pub fn styled<
 		&HashMap<String, String>,
 		F,
 ) -> Node {
-	console!(log, &css);
 	move |state_rc: &StateRc, children: &[FnCmp], attributes: &HashMap<String, String>, attach_events: F| -> Node {
 		let attrs = {
 			let class_hash = hash(&css);
@@ -39,7 +38,6 @@ pub fn styled<
 			let _ = state_rc.borrow().styles.borrow_mut().insert(class, css.clone());
 			new_attributes
 		};
-		console!(log, format!("{:?}", attrs));
 		f(state_rc, children, &attrs, attach_events)
 	}
 }
