@@ -1,23 +1,10 @@
-use crate::styled::styled;
-use futures::{join, try_join};
-use maplit::*;
 use std::{
 	cell::RefCell,
 	collections::HashMap,
 	rc::Rc,
 };
 use stdweb::{
-	__internal_console_unsafe,
-	__js_raw_asm,
-	_js_impl,
-	console,
-	js,
-	spawn_local,
-	traits::*,
-	unstable::TryInto,
-	unwrap_future,
-	web::{document, error::Error, event, wait, Element},
-	PromiseFuture,
+	web::{document, Element},
 };
 use crate::dom;
 
@@ -35,7 +22,7 @@ impl<S: Default> Default for StateLock<S> {
 		Self {
 			style: document().create_element("style").unwrap(),
 			mount: FnCmp(Box::new(|_| document().create_element("div").unwrap())),
-			styles: Rc::new(RefCell::new(HashMap::new())),
+			styles: Rc::default(),
 			state: S::default(),
 		}
 	}
@@ -51,10 +38,10 @@ impl<S: Default> StateLock<S> {
 pub type StateRc<S> = Rc<RefCell<StateLock<S>>>;
 
 #[allow(missing_debug_implementations)]
-pub struct FnCmp<S: Default>(pub Box<dyn Fn(&StateRc<S>) -> Element>);
+pub struct FnCmp<S: Default>(pub Box<dyn Fn(&StateLock<S>) -> Element>);
 
 impl<S: Default> FnCmp<S> {
-	pub fn new(f: impl 'static + Fn(&StateRc<S>) -> Element) -> Self {
+	pub fn new(f: impl 'static + Fn(&StateLock<S>) -> Element) -> Self {
 		FnCmp(Box::new(f))
 	}
 }

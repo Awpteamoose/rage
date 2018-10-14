@@ -1,4 +1,4 @@
-use crate::{FnCmp, StateRc};
+use crate::cmp::{FnCmp, StateRc, StateLock};
 use std::collections::HashMap;
 use stdweb::{
 	traits::*,
@@ -9,7 +9,7 @@ macro_rules! __p {
 	($name: ident) => {
 		#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used, dead_code, non_snake_case)]
 		pub fn $name<S: Default>(
-			state_rc: &StateRc<S>,
+			state_lock: &StateLock<S>,
 			children: &[FnCmp<S>],
 			attributes: &HashMap<String, String>,
 			attach_events: impl Fn(&Element),
@@ -17,7 +17,7 @@ macro_rules! __p {
 			let element = document().create_element(stringify!($name)).unwrap();
 
 			for child in children {
-				element.append_child(&child.0(&state_rc));
+				element.append_child(&child.0(state_lock));
 			}
 
 			for (name, value) in attributes.iter() {
@@ -69,11 +69,11 @@ __p!(var);__p!(video);__p!(wbr);
 impl<S: Default> From<String> for FnCmp<S> {
 	#[allow(clippy::result_unwrap_used)]
 	fn from(s: String) -> Self {
-		FnCmp(Box::new(move |_| {
+		FnCmp::new(move |_| {
 			let elem = document().create_element("span").unwrap();
 			elem.set_text_content(&s);
 			elem
-		}))
+		})
 	}
 }
 
@@ -81,11 +81,11 @@ impl<S: Default> From<&str> for FnCmp<S> {
 	#[allow(clippy::result_unwrap_used)]
 	fn from(s: &str) -> Self {
 		let owned = s.to_owned();
-		FnCmp(Box::new(move |_| {
+		FnCmp::new(move |_| {
 			let elem = document().create_element("span").unwrap();
 			elem.set_text_content(&owned);
 			elem
-		}))
+		})
 	}
 }
 

@@ -138,17 +138,18 @@ fn main() {
 	spawn_local(unwrap_future(future_main()));
 
 	let state_rc: StateRc<MyState> = StateRc::default();
-	{
-		let state_lock: &mut StateLock<MyState> = &mut state_rc.borrow_mut();
 
-		let test_div = FnCmp::new(|state_rc: &StateRc<MyState>| {
-			let state = &state_rc.borrow().state;
+	let mount = {
+		// let state_lock: &mut StateLock<MyState> = &mut state_rc.borrow_mut();
 
+		let state_rc = Rc::clone(&state_rc);
+		FnCmp::new(move |state_lock: &StateLock<MyState>| {
+			let state_rc = Rc::clone(&state_rc);
 			styled(
-				&state_rc,
+				state_lock,
 				primitives::div(
-					&state_rc,
-					children!["Shitty ", format!("more {}", state.some_value)],
+					state_lock,
+					children!["Shitty ", format!("more {}", state_lock.state.some_value)],
 					attrs![],
 					move |e| {
 						let mut new_state = Rc::clone(&state_rc);
@@ -175,15 +176,15 @@ fn main() {
 					font-size: {size}px;
 					user-select: none;
 				"#,
-					size = (state.some_value + 5) * 10
+					size = (state_lock.state.some_value + 5) * 10
 				),
 			)
-		});
+		})
+	};
 
-		let _ = std::mem::replace(&mut state_lock.mount, test_div);
+	let _ = std::mem::replace(&mut state_rc.borrow_mut().mount, mount);
 
-		document().head().unwrap().append_child(&state_lock.style);
-	}
+	document().head().unwrap().append_child(&state_rc.borrow().style);
 
 	dom::update(&state_rc);
 }

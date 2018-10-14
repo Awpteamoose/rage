@@ -77,14 +77,18 @@ pub fn update_node(parent: &mut Node, old: &mut Option<Node>, new: &Option<Node>
 pub fn update<S: Default>(state_rc: &crate::StateRc<S>) {
 	state_rc.borrow_mut().styles.borrow_mut().clear();
 
-	let new_node = state_rc.borrow().mount.0(state_rc);
+	let new_node = {
+		let state_lock = state_rc.borrow_mut();
+
+		state_lock.mount.0(&state_lock)
+	};
 
 	{
 		let crate::StateLock { style, styles, .. }: &mut crate::StateLock<S> = &mut state_rc.borrow_mut();
 
 		style.set_text_content(
 			&styles
-				.borrow_mut()
+				.borrow()
 				.iter()
 				.fold(String::new(), |acc, (class, style)| acc + &format!(".{} {{ {} }}", class, style)),
 		);
