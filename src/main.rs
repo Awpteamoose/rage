@@ -66,10 +66,8 @@ use self::{primitives::*, styled::styled};
 use futures::{join, try_join};
 use maplit::*;
 use std::{
-	any::Any,
 	cell::RefCell,
-	collections::{hash_map::DefaultHasher, HashMap},
-	hash::Hasher,
+	collections::HashMap,
 	rc::Rc,
 };
 use stdweb::{
@@ -80,9 +78,9 @@ use stdweb::{
 	js,
 	spawn_local,
 	traits::*,
-	unstable::{TryFrom, TryInto},
+	unstable::TryInto,
 	unwrap_future,
-	web::{document, error::Error, event, wait, Element, HtmlElement, Node},
+	web::{document, error::Error, event, wait, Element},
 	PromiseFuture,
 };
 
