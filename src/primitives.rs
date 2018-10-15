@@ -9,14 +9,14 @@ macro_rules! __p {
 	($name: ident) => {
 		#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used, dead_code, non_snake_case)]
 		pub fn $name(
-			children: &[Cmp],
+			children: &[Element],
 			attributes: &HashMap<&str, String>,
 			attach_events: impl Fn(&Element),
 		) -> Element {
 			let element = document().create_element(stringify!($name)).unwrap();
 
 			for child in children {
-				element.append_child(&child.0());
+				element.append_child(child.as_node());
 			}
 
 			for (name, value) in attributes.iter() {
@@ -94,12 +94,18 @@ impl From<Element> for Cmp {
 	}
 }
 
+impl From<Cmp> for Element {
+	fn from(f: Cmp) -> Self {
+		f.0()
+	}
+}
+
 macro_rules! children {
 	() => {
 		&[]
 	};
 	($($e: expr),+$(,)*) => {
-		&[$($e.into(),)+]
+		&[$($e,)+]
 	};
 }
 
