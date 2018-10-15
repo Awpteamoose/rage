@@ -3,6 +3,7 @@ use stdweb::{
 	traits::*,
 	web::{document, Element, INode, Node, event},
 };
+use strum_macros::AsStaticStr;
 
 // TODO: I could skip the Event bit, but concat_idents! doesn't work properly ¯\_(ツ)_/¯
 macro_rules! __event_idents {
@@ -64,6 +65,12 @@ macro_rules! __event_listeners {
 
 macro_rules! __primitives {
 	($($name: ident),+$(,)*) => {
+		#[allow(non_camel_case_types, dead_code)]
+		#[derive(Debug, AsStaticStr)]
+		pub enum Tag {
+			$($name,)+
+		}
+
 		$(
 			#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used, dead_code, non_snake_case, clippy::redundant_closure)]
 			pub fn $name(
