@@ -143,12 +143,11 @@ fn main() {
 
 	let state_rc: StateRc<MyState> = StateRc::default();
 
-
-	let divs = {
+	let cells = {
 		let mut divs = Vec::new();
 
-		for x in 0..5 {
-			for y in 0..5 {
+		for x in 0..100 {
+			for y in 0..100 {
 				let state_rc = Rc::clone(&state_rc);
 				divs.push(Cmp::new(move || -> Element { primitives::div(
 					children![],
@@ -165,7 +164,7 @@ fn main() {
 						let mut new_state = Rc::clone(&state_rc);
 						let _ = e.add_event_listener(move |_: event::ClickEvent| {
 							StateLock::update(&mut new_state, move |s| {
-								console!(log, format!("clicked ({}, {})", &x, &y));
+								// console!(log, format!("clicked ({}, {})", &x, &y));
 								if s.cells.get(&(x, y)).is_some() { let _ = s.cells.remove(&(x, y)); }
 								else { let _ = s.cells.insert((x, y)); }
 							});
@@ -178,18 +177,35 @@ fn main() {
 		divs
 	};
 
+
 	dom::mount(
 		Rc::clone(&state_rc),
 		Cmp::new(move || {
+			let button = {
+				let state_rc = Rc::clone(&state_rc);
+				Cmp::new(move || -> Element { primitives::input(
+					children![],
+					attrs!["type" => "button".to_owned()],
+					|e| {
+						let mut new_state = Rc::clone(&state_rc);
+						let _ = e.add_event_listener(move |_: event::ClickEvent| {
+							StateLock::update(&mut new_state, move |s| {
+								console!(log, "clicked play stop");
+							});
+						});
+					},
+				)})
+			};
+
 			let state = &state_rc.borrow().state;
 			primitives::div(
-				&divs,
+				children![button, primitives::div(&cells, attrs![], |_| {})],
 				attrs![
 				"class" => styled(&state_rc, r#"
 					user-select: none;
 					display: grid;
-					grid-template-columns: repeat(5, 50px);
-					grid-template-rows: repeat(50, 50px);
+					grid-template-columns: repeat(100, 10px);
+					grid-template-rows: repeat(100, 10px);
 				"#),
 			],
 				|e| {
