@@ -16,7 +16,7 @@ serde = "1.0.79"
 serde_derive = "1.0.79"
 stdweb = { git = "https://github.com/koute/stdweb", features = ["experimental_features_which_may_break_on_minor_version_bumps", "futures-support", "nightly"] }
 futures-preview = "0.3.0-alpha.7"
-rand = { git = "https://github.com/rust-random/rand" }
+rand = "0.5.5"
 
 [profile.dev]
 panic = "abort"
