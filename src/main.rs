@@ -89,11 +89,36 @@ use stdweb::{
 	PromiseFuture,
 };
 
-// lazy_static::lazy_static! {
-//     static ref STATE: StateRc<MyState> = StateRc::default();
-// }
 
+const GRID_SIZE: u32 = 100;
+const CELL_SIZE: u32 = 10;
+type Cell = (u32, u32);
 type Cells = HashSet<(u32, u32)>;
+
+fn neighbours(cells: &Cells, point: Cell) -> Vec<Cell> {
+	let mut res = Vec::new();
+
+	if let (Some(x), Some(y)) = (point.0.checked_sub(1), point.1.checked_sub(1)) {
+		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
+	}
+	if let (Some(x), Some(y)) = (point.0.checked_sub(1), point.1.checked_sub(0)) {
+		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
+	}
+	if let (Some(x), Some(y)) = (point.0.checked_sub(0), point.1.checked_sub(1)) {
+		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
+	}
+	if let (x, Some(y)) = (point.0 + 1, point.1.checked_sub(1)) {
+		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
+	}
+	if let (Some(x), y) = (point.0.checked_sub(1), point.1 + 1) {
+		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
+	}
+	if cells.get(&(point.0 + 1, point.1)).is_some() { res.push((point.0, point.1)); }
+	if cells.get(&(point.0, point.1 + 1)).is_some() { res.push((point.0, point.1)); }
+	if cells.get(&(point.0 + 1, point.1 + 1)).is_some() { res.push((point.0, point.1)); }
+
+	res
+}
 
 #[derive(Default, Debug)]
 pub struct MyState {
@@ -149,13 +174,41 @@ fn main() {
 	let state_rc: StateRc<MyState> = StateRc::default();
 
 	{
-		let state_rc = Rc::clone(&state_rc);
+		let mut state_rc = Rc::clone(&state_rc);
 		spawn_local(async move {
 			loop {
-				await!(wait(2000));
-				if state_rc.borrow().state.running {
-					console!(log, "tick");
-				}
+				await!(wait(250));
+				StateLock::update(&mut state_rc, |state| {
+					let mut living = Vec::new();
+					let mut dead = Vec::new();
+
+					if state.running {
+						console!(log, "TICK");
+
+						for x in 0..GRID_SIZE {
+							for y in 0..GRID_SIZE {
+								if state.cells.get(&(x, y)).is_none() && (neighbours(&state.cells, (x, y)).len() == 3) {
+									living.push((x, y));
+								}
+								if state.cells.get(&(x, y)).is_some() {
+									let num_neighbours = neighbours(&state.cells, (x, y)).len();
+									match num_neighbours {
+										0..=1 => dead.push((x, y)),
+										2..=3 => {},
+										_ => dead.push((x, y)),
+									}
+								}
+							}
+						}
+
+						for point in living.into_iter() {
+							let _ = state.cells.insert(point);
+						}
+						for point in dead.into_iter() {
+							let _ = state.cells.remove(&point);
+						}
+					}
+				})
 			}
 		});
 	}
@@ -164,8 +217,8 @@ fn main() {
 	let cells = move || {
 		let mut divs = Vec::new();
 
-		for x in 0..100 {
-			for y in 0..100 {
+		for x in 0..GRID_SIZE {
+			for y in 0..GRID_SIZE {
 				let state_rc = Rc::clone(&rc1);
 				divs.push(primitives::div(
 					children![],
@@ -195,11 +248,11 @@ fn main() {
 		divs
 	};
 
-	let button = {
+	let start_button = {
 		let state_rc = Rc::clone(&state_rc);
 		Cmp::new(move || -> Element { primitives::input(
 			children![],
-			attrs!["type" => "button".to_owned(), "value" => "go".to_owned()],
+			attrs!["type" => "button".to_owned(), "value" => "start".to_owned()],
 			|e| {
 				let mut new_state = Rc::clone(&state_rc);
 				let _ = e.add_event_listener(move |_: event::ClickEvent| {
@@ -212,45 +265,66 @@ fn main() {
 		)})
 	};
 
+	let randomize = {
+		let state_rc = Rc::clone(&state_rc);
+		Cmp::new(move || -> Element { primitives::input(
+			children![],
+			attrs!["type" => "button".to_owned(), "value" => "randomize".to_owned()],
+			|e| {
+				let mut new_state = Rc::clone(&state_rc);
+				let _ = e.add_event_listener(move |_: event::ClickEvent| {
+					StateLock::update(&mut new_state, move |s| {
+						use rand::prelude::*;
+
+						let mut bytes: [u8; 16] = [0; 16];
+						let seed: [u8; 8] = unsafe { std::mem::transmute(stdweb::web::Date::new().get_time()) };
+						for (index, byte) in seed.iter().enumerate() {
+							bytes[index] = *byte;
+							bytes[index + 8] = *byte;
+						}
+						let mut rng = rand::rngs::SmallRng::from_seed(bytes);
+						for x in 0..GRID_SIZE {
+							for y in 0..GRID_SIZE {
+								if rng.next_u32() > (u32::max_value() / 2) {
+									let _ = s.cells.insert((x, y));
+								} else {
+									let _ = s.cells.remove(&(x, y));
+								}
+							}
+						}
+					});
+				});
+			},
+		)})
+	};
+
+	let container = {
+		let state_rc = Rc::clone(&state_rc);
+		Cmp::new(move || primitives::div(
+			&cells().iter().map(Element::as_node).collect::<Vec<_>>(),
+			attrs![
+				"class" => styled(&state_rc, &format!(r#"
+					user-select: none;
+					display: grid;
+					grid-template-columns: repeat({grid_size}, {cell_size}px);
+					grid-template-rows: repeat({grid_size}, {cell_size}px);
+				"#, grid_size = GRID_SIZE, cell_size = CELL_SIZE)),
+			],
+			|_| {}
+		))
+	};
+
 	dom::mount(
 		Rc::clone(&state_rc),
 		Cmp::new(move || {
-
-			let state = &state_rc.borrow().state;
 			primitives::div(
 				children![
-					button.0().as_node(),
-					primitives::div(&cells().iter().map(Element::as_node).collect::<Vec<_>>(), attrs![
-						"class" => styled(&state_rc, r#"
-							user-select: none;
-							display: grid;
-							grid-template-columns: repeat(100, 10px);
-							grid-template-rows: repeat(100, 10px);
-						"#),
-					],
-					|_| {}).as_node(),
+					start_button.0().as_node(),
+					randomize.0().as_node(),
+					container.0().as_node(),
 				],
 				attrs![],
-				|e| {
-					// let mut new_state = Rc::clone(&state_rc);
-					// let _ = e.add_event_listener(move |_: event::ClickEvent| {
-					//     console!(log, "clicky");
-					//     StateLock::update(&mut new_state, move |s| {
-					//         s.some_value += 1;
-					//     });
-					// });
-
-					// let mut new_state = Rc::clone(&state_rc);
-					// let _ = e.add_event_listener(move |e: event::AuxClickEvent| {
-					//     if e.button() != event::MouseButton::Right {
-					//         return;
-					//     }
-					//     console!(log, "rick clicky");
-					//     StateLock::update(&mut new_state, move |s| {
-					//         s.some_value -= 1;
-					//     });
-					// });
-				},
+				|_| {},
 			)
 		}),
 	);
