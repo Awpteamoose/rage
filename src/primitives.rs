@@ -120,6 +120,6 @@ macro_rules! attrs {
 		&hashmap![]
 	};
 	($($k: expr => $v: expr),+$(,)*) => {
-		&hashmap![$($k => $v,)+]
+		&hashmap![$($k => $v.into(),)+]
 	};
 }

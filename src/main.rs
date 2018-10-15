@@ -252,7 +252,10 @@ fn main() {
 		let state_rc = Rc::clone(&state_rc);
 		Cmp::new(move || -> Element { primitives::input(
 			children![],
-			attrs!["type" => "button".to_owned(), "value" => "start".to_owned()],
+			attrs![
+				"type" => "button",
+				"value" => "start",
+			],
 			|e| {
 				let mut new_state = Rc::clone(&state_rc);
 				let _ = e.add_event_listener(move |_: event::ClickEvent| {
@@ -269,7 +272,10 @@ fn main() {
 		let state_rc = Rc::clone(&state_rc);
 		Cmp::new(move || -> Element { primitives::input(
 			children![],
-			attrs!["type" => "button".to_owned(), "value" => "randomize".to_owned()],
+			attrs![
+				"type" => "button",
+				"value" => "randomize",
+			],
 			|e| {
 				let mut new_state = Rc::clone(&state_rc);
 				let _ = e.add_event_listener(move |_: event::ClickEvent| {
