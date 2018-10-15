@@ -9,6 +9,7 @@ use stdweb::{
 	console,
 	js,
 };
+use std::rc::Rc;
 
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
 fn update_attributes(old: &Element, new: &Element) {
@@ -96,7 +97,7 @@ pub fn update_node(parent: &mut Element, old: Option<Node>, new: Option<Node>) {
 pub fn update<S: Default>(state_rc: &mut crate::StateRc<S>) {
 	state_rc.borrow().styles.borrow_mut().clear();
 
-	let new_node = state_rc.borrow().mount.0();
+	let new_node = state_rc.borrow().mount.0(Rc::clone(state_rc));
 
 	{
 		let crate::StateLock { style, styles, .. }: &mut crate::StateLock<S> = &mut state_rc.borrow_mut();
@@ -116,7 +117,7 @@ pub fn update<S: Default>(state_rc: &mut crate::StateRc<S>) {
 }
 
 #[allow(clippy::option_unwrap_used)]
-pub fn mount(mut state_rc: crate::StateRc<impl Default>, mount: Cmp) {
+pub fn mount<S: Default>(mut state_rc: crate::StateRc<S>, mount: Cmp<S>) {
 	let _ = std::mem::replace(&mut state_rc.borrow_mut().mount, mount);
 
 	document().head().unwrap().append_child(&state_rc.borrow().style);
