@@ -98,23 +98,31 @@ type Cells = HashSet<(u32, u32)>;
 fn neighbours(cells: &Cells, point: Cell) -> Vec<Cell> {
 	let mut res = Vec::new();
 
+	// SW
 	if let (Some(x), Some(y)) = (point.0.checked_sub(1), point.1.checked_sub(1)) {
 		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
 	}
-	if let (Some(x), Some(y)) = (point.0.checked_sub(1), point.1.checked_sub(0)) {
+	// W
+	if let (Some(x), y) = (point.0.checked_sub(1), point.1) {
 		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
 	}
-	if let (Some(x), Some(y)) = (point.0.checked_sub(0), point.1.checked_sub(1)) {
+	// S
+	if let (x, Some(y)) = (point.0, point.1.checked_sub(1)) {
 		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
 	}
+	// SE
 	if let (x, Some(y)) = (point.0 + 1, point.1.checked_sub(1)) {
 		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
 	}
+	// NW
 	if let (Some(x), y) = (point.0.checked_sub(1), point.1 + 1) {
 		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
 	}
+	// E
 	if cells.get(&(point.0 + 1, point.1)).is_some() { res.push((point.0, point.1)); }
+	// N
 	if cells.get(&(point.0, point.1 + 1)).is_some() { res.push((point.0, point.1)); }
+	// NE
 	if cells.get(&(point.0 + 1, point.1 + 1)).is_some() { res.push((point.0, point.1)); }
 
 	res
