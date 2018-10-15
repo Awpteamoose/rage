@@ -1,22 +1,26 @@
 use crate::cmp::Cmp;
-use std::collections::HashMap;
+use std::{
+	collections::HashMap,
+	ops::Deref,
+};
 use stdweb::{
 	traits::*,
-	web::{document, Element},
+	web::{document, Element, INode, Node},
+	unstable::TryFrom,
 };
 
 macro_rules! __p {
 	($name: ident) => {
 		#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used, dead_code, non_snake_case)]
 		pub fn $name(
-			children: &[Element],
+			children: &[&Node],
 			attributes: &HashMap<&str, String>,
 			attach_events: impl Fn(&Element),
 		) -> Element {
 			let element = document().create_element(stringify!($name)).unwrap();
 
 			for child in children {
-				element.append_child(child.as_node());
+				element.append_child(*child);
 			}
 
 			for (name, value) in attributes.iter() {
@@ -65,40 +69,42 @@ __p!(thead);__p!(time);__p!(title);__p!(tr);
 __p!(track);__p!(tspan);__p!(u);__p!(ul);
 __p!(var);__p!(video);__p!(wbr);
 
-impl From<String> for Cmp {
-	#[allow(clippy::result_unwrap_used)]
-	fn from(s: String) -> Self {
-		Self::new(move || {
-			let elem = document().create_element("span").unwrap();
-			elem.set_text_content(&s);
-			elem
-		})
-	}
-}
+pub fn text_node(s: &str) -> Node { Node::from(document().create_text_node(s)) }
 
-impl From<&str> for Cmp {
-	#[allow(clippy::result_unwrap_used)]
-	fn from(s: &str) -> Self {
-		let owned = s.to_owned();
-		Self::new(move || {
-			let elem = document().create_element("span").unwrap();
-			elem.set_text_content(&owned);
-			elem
-		})
-	}
-}
+// impl From<String> for Cmp {
+//     #[allow(clippy::result_unwrap_used)]
+//     fn from(s: String) -> Self {
+//         Self::new(move || {
+//             let elem = document().create_element("span").unwrap();
+//             elem.set_text_content(&s);
+//             elem
+//         })
+//     }
+// }
 
-impl From<Element> for Cmp {
-	fn from(e: Element) -> Self {
-		Self::new(move || e.clone())
-	}
-}
+// impl From<&str> for Cmp {
+//     #[allow(clippy::result_unwrap_used)]
+//     fn from(s: &str) -> Self {
+//         let owned = s.to_owned();
+//         Self::new(move || {
+//             let elem = document().create_element("span").unwrap();
+//             elem.set_text_content(&owned);
+//             elem
+//         })
+//     }
+// }
 
-impl From<Cmp> for Element {
-	fn from(f: Cmp) -> Self {
-		f.0()
-	}
-}
+// impl From<Element> for Cmp {
+//     fn from(e: Element) -> Self {
+//         Self::new(move || e.clone())
+//     }
+// }
+
+// impl From<&Cmp> for Element {
+//     fn from(f: &Cmp) -> Self {
+//         f.0()
+//     }
+// }
 
 macro_rules! children {
 	() => {

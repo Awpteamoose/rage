@@ -99,6 +99,7 @@ type Cells = HashSet<(u32, u32)>;
 pub struct MyState {
 	cells: Cells,
 	some_value: i32,
+	running: bool,
 }
 
 fn fetch(url: &str) -> PromiseFuture<String> {
@@ -147,6 +148,18 @@ fn main() {
 
 	let state_rc: StateRc<MyState> = StateRc::default();
 
+	{
+		let state_rc = Rc::clone(&state_rc);
+		spawn_local(async move {
+			loop {
+				await!(wait(2000));
+				if state_rc.borrow().state.running {
+					console!(log, "tick");
+				}
+			}
+		});
+	}
+
 	let rc1 = Rc::clone(&state_rc);
 	let cells = move || {
 		let mut divs = Vec::new();
@@ -186,12 +199,13 @@ fn main() {
 		let state_rc = Rc::clone(&state_rc);
 		Cmp::new(move || -> Element { primitives::input(
 			children![],
-			attrs!["type" => "button".to_owned()],
+			attrs!["type" => "button".to_owned(), "value" => "go".to_owned()],
 			|e| {
 				let mut new_state = Rc::clone(&state_rc);
 				let _ = e.add_event_listener(move |_: event::ClickEvent| {
 					StateLock::update(&mut new_state, move |s| {
 						console!(log, "clicked play stop");
+						s.running = true;
 					});
 				});
 			},
@@ -204,14 +218,18 @@ fn main() {
 
 			let state = &state_rc.borrow().state;
 			primitives::div(
-				children![button.0(), primitives::div(&cells(), attrs![
-					"class" => styled(&state_rc, r#"
-						user-select: none;
-						display: grid;
-						grid-template-columns: repeat(100, 10px);
-						grid-template-rows: repeat(100, 10px);
-					"#),
-				], |_| {})],
+				children![
+					button.0().as_node(),
+					primitives::div(&cells().iter().map(Element::as_node).collect::<Vec<_>>(), attrs![
+						"class" => styled(&state_rc, r#"
+							user-select: none;
+							display: grid;
+							grid-template-columns: repeat(100, 10px);
+							grid-template-rows: repeat(100, 10px);
+						"#),
+					],
+					|_| {}).as_node(),
+				],
 				attrs![],
 				|e| {
 					// let mut new_state = Rc::clone(&state_rc);
