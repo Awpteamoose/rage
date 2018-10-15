@@ -63,6 +63,7 @@ mod dom;
 mod primitives;
 mod cmp;
 mod styled;
+mod vdom;
 
 use self::styled::styled;
 use crate::cmp::*;
@@ -85,7 +86,7 @@ use stdweb::{
 	traits::*,
 	unstable::TryInto,
 	unwrap_future,
-	web::{error::Error, event, wait, Element},
+	web::{error::Error, event::{self, ConcreteEvent}, wait, Element},
 	PromiseFuture,
 };
 
@@ -188,15 +189,16 @@ async fn future_main() -> Result<(), Error> {
 	Ok(())
 }
 
-fn cells(rc: &StateRc<MyState>) -> Vec<Element> {
+fn cells(rc: StateRc<MyState>) -> Vec<Element> {
 	let mut divs = Vec::new();
 
 	for x in 0..GRID_SIZE {
 		for y in 0..GRID_SIZE {
+			let rc1 = Rc::clone(&rc);
 			divs.push(primitives::div(
 				children![],
 				attrs![
-					"class" => styled(&rc, &format!(r#"
+					"class" => styled(&rc1, &format!(r#"
 						border: 1px solid black;
 						background-color: {color};
 						box-sizing: content-box;
@@ -204,16 +206,16 @@ fn cells(rc: &StateRc<MyState>) -> Vec<Element> {
 						color = if rc.borrow().state.cells.get(&(x, y)).is_some() { "black" } else { "white" }
 					)),
 				],
-				|e| {
-					let mut new_state = Rc::clone(&rc);
-					let _ = e.add_event_listener(move |_: event::ClickEvent| {
-						StateLock::update(&mut new_state, move |s| {
+				events![
+					move |_: event::ClickEvent| {
+						let mut my_rc = Rc::clone(&rc1);
+						StateLock::update(&mut my_rc, move |s| {
 							// console!(log, format!("clicked ({}, {})", &x, &y));
 							if s.cells.get(&(x, y)).is_some() { let _ = s.cells.remove(&(x, y)); }
 							else { let _ = s.cells.insert((x, y)); }
 						});
-					});
-				},
+					},
+				],
 			));
 		}
 	}
@@ -221,35 +223,35 @@ fn cells(rc: &StateRc<MyState>) -> Vec<Element> {
 	divs
 }
 
-fn start_button(rc: &StateRc<MyState>) -> Element {
+fn start_button(rc: StateRc<MyState>) -> Element {
 	primitives::input(
 		children![],
 		attrs![
 			"type" => "button",
 			"value" => if rc.borrow().state.running { "stop" } else { "start" },
 		],
-		|e| {
-			let mut new_state = Rc::clone(&rc);
-			let _ = e.add_event_listener(move |_: event::ClickEvent| {
-				StateLock::update(&mut new_state, move |s| {
+		events![
+			move |_: event::ClickEvent| {
+				let mut my_rc = Rc::clone(&rc);
+				StateLock::update(&mut my_rc, move |s| {
 					s.running = !s.running;
 				});
-			});
-		},
+			},
+		],
 	)
 }
 
-fn randomize_button(rc: &StateRc<MyState>) -> Element {
+fn randomize_button(rc: StateRc<MyState>) -> Element {
 	primitives::input(
 		children![],
 		attrs![
 			"type" => "button",
 			"value" => "randomize",
 		],
-		|e| {
-			let mut new_state = Rc::clone(&rc);
-			let _ = e.add_event_listener(move |_: event::ClickEvent| {
-				StateLock::update(&mut new_state, move |s| {
+		events![
+			move |_: event::ClickEvent| {
+				let mut my_rc = Rc::clone(&rc);
+				StateLock::update(&mut my_rc, move |s| {
 					use rand::prelude::*;
 
 					for x in 0..GRID_SIZE {
@@ -262,23 +264,23 @@ fn randomize_button(rc: &StateRc<MyState>) -> Element {
 						}
 					}
 				});
-			});
-		},
+			},
+		],
 	)
 }
 
-fn container(rc: &StateRc<MyState>) -> Element {
+fn container(rc: StateRc<MyState>) -> Element {
 	primitives::div(
-		&cells(rc).iter().map(Element::as_node).collect::<Vec<_>>(),
+		&cells(Rc::clone(&rc)).iter().map(Element::as_node).collect::<Vec<_>>(),
 		attrs![
-			"class" => styled(rc, &format!(r#"
+			"class" => styled(&rc, &format!(r#"
 				user-select: none;
 				display: grid;
 				grid-template-columns: repeat({grid_size}, {cell_size}px);
 				grid-template-rows: repeat({grid_size}, {cell_size}px);
 			"#, grid_size = GRID_SIZE, cell_size = CELL_SIZE)),
 		],
-		|_| {}
+		events![],
 	)
 }
 
@@ -333,12 +335,12 @@ fn main() {
 		Cmp::new(move |rc| {
 			primitives::div(
 				children![
-					start_button(&rc).as_node(),
-					randomize_button(&rc).as_node(),
-					container(&rc).as_node(),
+					start_button(Rc::clone(&rc)).as_node(),
+					randomize_button(Rc::clone(&rc)).as_node(),
+					container(Rc::clone(&rc)).as_node(),
 				],
 				attrs![],
-				|_| {},
+				events![],
 			)
 		}),
 	);
