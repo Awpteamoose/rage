@@ -70,7 +70,6 @@ use crate::cmp::*;
 use futures::{join, try_join};
 use maplit::*;
 use std::{
-	rc::Rc,
 	collections::{
 		HashMap,
 		HashSet,
@@ -89,6 +88,22 @@ use stdweb::{
 	web::{error::Error, event::{self, ConcreteEvent}, wait, Element},
 	PromiseFuture,
 };
+
+lazy_static::lazy_static! {
+	static ref STATE: StateLock<MyState> = StateLock::default();
+
+	static ref RNG: std::sync::Mutex<rand::rngs::SmallRng> = {
+		use rand::prelude::*;
+
+		let mut bytes: [u8; 16] = [0; 16];
+		let seed: [u8; 8] = unsafe { std::mem::transmute(stdweb::web::Date::new().get_time()) };
+		for (index, byte) in seed.iter().enumerate() {
+			bytes[index] = *byte;
+			bytes[index + 8] = *byte;
+		}
+		std::sync::Mutex::new(rand::rngs::SmallRng::from_seed(bytes))
+	};
+}
 
 const GRID_SIZE: u32 = 100;
 const CELL_SIZE: u32 = 10;
@@ -126,20 +141,6 @@ fn neighbours(cells: &Cells, point: Cell) -> Vec<Cell> {
 	if cells.get(&(point.0 + 1, point.1 + 1)).is_some() { res.push((point.0, point.1)); }
 
 	res
-}
-
-lazy_static::lazy_static! {
-	static ref RNG: std::sync::Mutex<rand::rngs::SmallRng> = {
-		use rand::prelude::*;
-
-		let mut bytes: [u8; 16] = [0; 16];
-		let seed: [u8; 8] = unsafe { std::mem::transmute(stdweb::web::Date::new().get_time()) };
-		for (index, byte) in seed.iter().enumerate() {
-			bytes[index] = *byte;
-			bytes[index + 8] = *byte;
-		}
-		std::sync::Mutex::new(rand::rngs::SmallRng::from_seed(bytes))
-	};
 }
 
 #[derive(Default, Debug)]
@@ -189,31 +190,28 @@ async fn future_main() -> Result<(), Error> {
 	Ok(())
 }
 
-fn cells(rc: StateRc<MyState>) -> Vec<Element> {
+fn cells() -> Vec<Element> {
 	let mut divs = Vec::new();
 
 	for x in 0..GRID_SIZE {
 		for y in 0..GRID_SIZE {
-			let rc1 = Rc::clone(&rc);
 			divs.push(primitives::div(
 				children![],
 				attrs![
-					"class" => styled(&rc1, &format!(r#"
+					"class" => styled(&STATE, &format!(r#"
 						border: 1px solid black;
 						background-color: {color};
 						box-sizing: content-box;
 					"#,
-						color = if rc.borrow().state.cells.get(&(x, y)).is_some() { "black" } else { "white" }
+						color = if STATE.view().cells.get(&(x, y)).is_some() { "black" } else { "white" }
 					)),
 				],
 				events![
 					move |_: event::ClickEvent| {
-						let mut my_rc = Rc::clone(&rc1);
-						StateLock::update(&mut my_rc, move |s| {
-							// console!(log, format!("clicked ({}, {})", &x, &y));
-							if s.cells.get(&(x, y)).is_some() { let _ = s.cells.remove(&(x, y)); }
-							else { let _ = s.cells.insert((x, y)); }
-						});
+						let state = &mut STATE.update();
+
+						if state.cells.get(&(x, y)).is_some() { let _ = state.cells.remove(&(x, y)); }
+						else { let _ = state.cells.insert((x, y)); }
 					},
 				],
 			));
@@ -223,25 +221,23 @@ fn cells(rc: StateRc<MyState>) -> Vec<Element> {
 	divs
 }
 
-fn start_button(rc: StateRc<MyState>) -> Element {
+fn start_button() -> Element {
 	primitives::input(
 		children![],
 		attrs![
 			"type" => "button",
-			"value" => if rc.borrow().state.running { "stop" } else { "start" },
+			"value" => if STATE.view().running { "stop" } else { "start" },
 		],
 		events![
 			move |_: event::ClickEvent| {
-				let mut my_rc = Rc::clone(&rc);
-				StateLock::update(&mut my_rc, move |s| {
-					s.running = !s.running;
-				});
+				let state = &mut STATE.update();
+				state.running = !state.running;
 			},
 		],
 	)
 }
 
-fn randomize_button(rc: StateRc<MyState>) -> Element {
+fn randomize_button() -> Element {
 	primitives::input(
 		children![],
 		attrs![
@@ -250,30 +246,29 @@ fn randomize_button(rc: StateRc<MyState>) -> Element {
 		],
 		events![
 			move |_: event::ClickEvent| {
-				let mut my_rc = Rc::clone(&rc);
-				StateLock::update(&mut my_rc, move |s| {
-					use rand::prelude::*;
+				use rand::prelude::*;
 
-					for x in 0..GRID_SIZE {
-						for y in 0..GRID_SIZE {
-							if RNG.lock().unwrap().next_u32() > (u32::max_value() / 2) {
-								let _ = s.cells.insert((x, y));
-							} else {
-								let _ = s.cells.remove(&(x, y));
-							}
+				let state = &mut STATE.update();
+
+				for x in 0..GRID_SIZE {
+					for y in 0..GRID_SIZE {
+						if RNG.lock().unwrap().next_u32() > (u32::max_value() / 2) {
+							let _ = state.cells.insert((x, y));
+						} else {
+							let _ = state.cells.remove(&(x, y));
 						}
 					}
-				});
+				}
 			},
 		],
 	)
 }
 
-fn container(rc: StateRc<MyState>) -> Element {
+fn container() -> Element {
 	primitives::div(
-		&cells(Rc::clone(&rc)).iter().map(Element::as_node).collect::<Vec<_>>(),
+		&cells().iter().map(Element::as_node).collect::<Vec<_>>(),
 		attrs![
-			"class" => styled(&rc, &format!(r#"
+			"class" => styled(&STATE, &format!(r#"
 				user-select: none;
 				display: grid;
 				grid-template-columns: repeat({grid_size}, {cell_size}px);
@@ -284,64 +279,60 @@ fn container(rc: StateRc<MyState>) -> Element {
 	)
 }
 
+fn root() -> Element {
+	primitives::div(
+		children![
+			start_button().as_node(),
+			randomize_button().as_node(),
+			container().as_node(),
+		],
+		attrs![],
+		events![],
+	)
+}
+
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
 fn main() {
 	// spawn_local(unwrap_future(future_main()));
 
-	let state_rc: StateRc<MyState> = StateRc::default();
+	spawn_local(async move {
+		loop {
+			await!(wait(250));
+			if !STATE.view().running { continue; }
 
-	{
-		let mut state_rc = Rc::clone(&state_rc);
-		spawn_local(async move {
-			loop {
-				await!(wait(250));
-				StateLock::update(&mut state_rc, |state| {
-					let mut living = Vec::new();
-					let mut dead = Vec::new();
+			let state = &mut STATE.update();
 
-					if state.running {
-						console!(log, "TICK");
+			let mut living = Vec::new();
+			let mut dead = Vec::new();
 
-						for x in 0..GRID_SIZE {
-							for y in 0..GRID_SIZE {
-								if state.cells.get(&(x, y)).is_none() && (neighbours(&state.cells, (x, y)).len() == 3) {
-									living.push((x, y));
-								}
-								if state.cells.get(&(x, y)).is_some() {
-									let num_neighbours = neighbours(&state.cells, (x, y)).len();
-									match num_neighbours {
-										0..=1 => dead.push((x, y)),
-										2..=3 => {},
-										_ => dead.push((x, y)),
-									}
-								}
+			if state.running {
+				console!(log, "TICK");
+
+				for x in 0..GRID_SIZE {
+					for y in 0..GRID_SIZE {
+						if state.cells.get(&(x, y)).is_none() && (neighbours(&state.cells, (x, y)).len() == 3) {
+							living.push((x, y));
+						}
+						if state.cells.get(&(x, y)).is_some() {
+							let num_neighbours = neighbours(&state.cells, (x, y)).len();
+							match num_neighbours {
+								0..=1 => dead.push((x, y)),
+								2..=3 => {},
+								_ => dead.push((x, y)),
 							}
 						}
-
-						for point in living.into_iter() {
-							let _ = state.cells.insert(point);
-						}
-						for point in dead.into_iter() {
-							let _ = state.cells.remove(&point);
-						}
 					}
-				})
-			}
-		});
-	}
+				}
 
-	dom::mount(
-		Rc::clone(&state_rc),
-		Cmp::new(move |rc| {
-			primitives::div(
-				children![
-					start_button(Rc::clone(&rc)).as_node(),
-					randomize_button(Rc::clone(&rc)).as_node(),
-					container(Rc::clone(&rc)).as_node(),
-				],
-				attrs![],
-				events![],
-			)
-		}),
-	);
+				for point in living.into_iter() {
+					let _ = state.cells.insert(point);
+				}
+				for point in dead.into_iter() {
+					let _ = state.cells.remove(&point);
+				}
+			}
+		}
+	});
+
+	dom::mount(&STATE, root);
 }

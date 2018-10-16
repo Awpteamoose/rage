@@ -1,4 +1,3 @@
-use crate::cmp::Cmp;
 use stdweb::{
 	traits::*,
 	unstable::TryFrom,
@@ -9,7 +8,6 @@ use stdweb::{
 	console,
 	js,
 };
-use std::rc::Rc;
 
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
 fn update_attributes(old: &Element, new: &Element) {
@@ -94,17 +92,19 @@ pub fn update_node(parent: &mut Element, old: Option<Node>, new: Option<Node>) {
 }
 
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
-pub fn update<S: Default>(state_rc: &mut crate::StateRc<S>) {
-	state_rc.borrow().styles.borrow_mut().clear();
+pub fn update<S: Default + 'static>(state_lock: &crate::cmp::StateLock<S>) {
+	console!(log, "RERENDER");
+	state_lock.view_meta().styles.write().unwrap().clear();
 
-	let new_node = state_rc.borrow().mount.0(Rc::clone(state_rc));
+	let new_node = (state_lock.view_meta().mount)();
 
 	{
-		let crate::StateLock { style, styles, .. }: &mut crate::StateLock<S> = &mut state_rc.borrow_mut();
+		let crate::cmp::StateMeta { styles, style, .. }: &mut crate::cmp::StateMeta = &mut state_lock.0.meta.write().unwrap();
 
 		style.set_text_content(
 			&styles
-				.borrow()
+				.read()
+				.unwrap()
 				.iter()
 				.fold(String::new(), |acc, (class, style)| acc + &format!(".{} {{ {} }}", class, style)),
 		);
@@ -113,14 +113,14 @@ pub fn update<S: Default>(state_rc: &mut crate::StateRc<S>) {
 	let body = document().body().unwrap();
 	let first = body.child_nodes().item(0);
 
-	update_node(&mut Element::from(body), first, Some(Node::from(new_node)))
+	update_node(&mut Element::from(body), first, Some(Node::from(new_node)));
+	state_lock.0.meta.write().unwrap().dirty = false;
 }
 
 #[allow(clippy::option_unwrap_used)]
-pub fn mount<S: Default>(mut state_rc: crate::StateRc<S>, mount: Cmp<S>) {
-	let _ = std::mem::replace(&mut state_rc.borrow_mut().mount, mount);
+pub fn mount<S: Default + 'static, F: Fn() -> Element + 'static + Send + Sync>(rw_lock: &crate::StateLock<S>, mount: F) {
+	let _ = std::mem::replace(&mut rw_lock.update_meta().mount, Box::new(mount));
 
-	document().head().unwrap().append_child(&state_rc.borrow().style);
-
-	update(&mut state_rc);
+	document().head().unwrap().append_child(&rw_lock.view_meta().style);
+	// update(&rw_lock);
 }
