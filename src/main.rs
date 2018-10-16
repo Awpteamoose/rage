@@ -90,7 +90,7 @@ use stdweb::{
 };
 
 lazy_static::lazy_static! {
-	static ref STATE: StateLock<'static, MyState> = StateLock::default();
+	static ref STATE: StateLock<MyState> = StateLock::default();
 
 	static ref RNG: std::sync::Mutex<rand::rngs::SmallRng> = {
 		use rand::prelude::*;

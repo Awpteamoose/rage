@@ -1,85 +1,100 @@
-// node and element traits
-// each node stores a reference to their real dom node
-// diff as I do right now, except return update pairs, to_delete and to_append and then work on real dom
-// ???
-// fast as fukkkkkkkkkkk
-
 use stdweb::{
 	__internal_console_unsafe,
 	__js_raw_asm,
 	_js_impl,
 	js,
 	console,
+	traits::*,
 	web::{
 		Element as DomElement,
 		Node as DomNode,
 	},
+	unstable::TryFrom,
 };
 use std::collections::{
 	HashMap,
 	HashSet,
 };
+use maplit::*;
+use strum::AsStaticRef;
 
-#[derive(PartialEq, Eq)]
-pub struct Element<'a> {
-	// dom_reference: Option<DomNode>,
+pub struct Element {
+	pub dom_reference: Option<DomNode>,
 
 	pub tag: crate::primitives::Tag,
-	pub parent: Option<&'a Element<'a>>,
-	pub children: Vec<Element<'a>>,
+	pub parent: Option<&'static Element>,
+	pub children: Vec<Element>,
 	pub attributes: HashMap<String, String>,
+	pub events: Vec<crate::primitives::EventHandler>,
 }
 
-impl<'a> Element<'a> {
-	pub fn render(&mut self) -> DomElement {
-		unimplemented!()
+impl PartialEq for Element {
+	fn eq(&self, other: &Self) -> bool {
+		self.tag == other.tag &&
+		self.parent == other.parent &&
+		self.children == other.children &&
+		self.attributes == other.attributes
 	}
 }
 
-// #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
-// fn update_attributes(old: &Element, new: &Element) {
-//     let old_attrs = old.get_attribute_names();
-//     let new_attrs = new.get_attribute_names();
+impl Eq for Element {}
 
-//     for attr in old_attrs.into_iter() {
-//         if old.get_attribute(&attr).is_some() && new.get_attribute(&attr).is_none() {
-//             old.remove_attribute(&attr);
-//         }
-//     }
+impl Element {
+	#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used, clippy::redundant_closure)]
+	pub fn render(&mut self) -> DomNode {
+		let element = stdweb::web::document().create_element(self.tag.as_static()).unwrap();
 
-//     for attr in new_attrs.into_iter() {
-//         if let (Some(new_value), Some(old_value)) = (new.get_attribute(&attr), old.get_attribute(&attr)) {
-//             if new_value != old_value {
-//                 let _ = old.set_attribute(&attr, &new_value);
-//             }
-//         }
-//     }
-// }
+		for child in &mut self.children {
+			element.append_child(&child.render());
+		}
+
+		for (name, value) in self.attributes.iter() {
+			element.set_attribute(name, value).unwrap();
+		}
+
+		let events = std::mem::replace(&mut self.events, vec![]);
+		for handler in events.into_iter() {
+			__event_idents![__event_listeners, handler, element];
+		}
+
+		element.into()
+	}
+}
 
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
-pub fn patch_tree<'a>(old: Option<&mut Element<'a>>, new: Option<&mut Element<'a>>) {
+pub fn patch_tree(old: Option<&mut Element>, new: Option<&mut Element>) {
 	match (old, new) {
 		(None, Some(new)) => {
 			console!(log, "append on compare");
-			// TODO: insert into dom
-			// let _ = parent.children.push(new);
+			new.parent.as_ref().unwrap().dom_reference.as_ref().unwrap().append_child(&new.render());
 		},
 		(Some(old), None) => {
 			console!(log, "remove on compare");
-			// TODO: remove from dom
-			// let _ = parent.children.remove(parent.children.binary_search(&old).unwrap());
+			let _ = old.parent.as_ref().unwrap().dom_reference.as_ref().unwrap().remove_child(old.dom_reference.as_ref().unwrap()).unwrap();
 		},
 		(Some(old), Some(new)) => {
+			new.dom_reference = old.dom_reference.clone();
 			if old == new { return; }
 
 			if old.children.is_empty() || new.children.is_empty() {
-				// TODO: swap in dom
-				// let _ = parent.children.remove(&old);
-				// let _ = parent.children.insert(new);
-				// return;
+				let parent_dom = new.parent.as_ref().unwrap().dom_reference.as_ref().unwrap();
+				let old_dom = old.dom_reference.as_ref().unwrap();
+
+				if new.dom_reference.is_none() {
+					new.dom_reference = Some(new.render());
+				}
+				let new_dom = new.dom_reference.as_ref().unwrap();
+				let _ = parent_dom.replace_child(old_dom, new_dom).unwrap();
+				return;
 			}
 
-			// TODO: update attributes
+			if new.attributes != old.attributes {
+				if new.dom_reference.is_none() { new.dom_reference = Some(new.render()); }
+				let new_dom = DomElement::try_from(new.dom_reference.as_ref().unwrap().clone()).unwrap();
+				for (name, value) in new.attributes.iter() {
+					new_dom.set_attribute(name, value).unwrap();
+				}
+			}
 
 			for id in 0..usize::max(old.children.len(), new.children.len()) {
 				let (old_node, new_node) = (old.children.get_mut(id), new.children.get_mut(id));
@@ -90,36 +105,33 @@ pub fn patch_tree<'a>(old: Option<&mut Element<'a>>, new: Option<&mut Element<'a
 	}
 }
 
-// #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
-// pub fn update<S: Default + 'static>(state_lock: &crate::cmp::StateLock<S>) {
-//     console!(log, "RERENDER");
-//     state_lock.view_meta().styles.write().unwrap().clear();
+#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
+pub fn update<S: Default + 'static>(state_lock: &'static crate::cmp::StateLock<S>) {
+	console!(log, "RERENDER");
+	state_lock.view_meta().styles.write().unwrap().clear();
 
-//     let new_node = (state_lock.view_meta().mount)();
+	let mut new_node = (state_lock.view_meta().mount)();
 
-//     {
-//         let crate::cmp::StateMeta { styles, style, .. }: &mut crate::cmp::StateMeta = &mut state_lock.0.meta.write().unwrap();
+	{
+		let crate::cmp::StateMeta { styles, style, .. }: &mut crate::cmp::StateMeta = &mut state_lock.0.meta.write().unwrap();
 
-//         style.set_text_content(
-//             &styles
-//                 .read()
-//                 .unwrap()
-//                 .iter()
-//                 .fold(String::new(), |acc, (class, style)| acc + &format!(".{} {{ {} }}", class, style)),
-//         );
-//     }
+		style.set_text_content(
+			&styles
+				.read()
+				.unwrap()
+				.iter()
+				.fold(String::new(), |acc, (class, style)| acc + &format!(".{} {{ {} }}", class, style)),
+		);
+	}
 
-//     let body = document().body().unwrap();
-//     let first = body.child_nodes().item(0);
+	patch_tree(Some(&mut state_lock.0.meta.write().unwrap().vdom), Some(&mut new_node));
 
-//     update_node(&mut Element::from(body), first, Some(Node::from(new_node)));
-//     state_lock.0.meta.write().unwrap().dirty = false;
-// }
+	state_lock.0.meta.write().unwrap().dirty = false;
+}
 
-// #[allow(clippy::option_unwrap_used)]
-// pub fn mount<S: Default + 'static, F: Fn() -> Element + 'static + Send + Sync>(rw_lock: &crate::StateLock<S>, mount: F) {
-//     let _ = std::mem::replace(&mut rw_lock.update_meta().mount, Box::new(mount));
+#[allow(clippy::option_unwrap_used)]
+pub fn mount<S: Default + 'static, F: Fn() -> Element + 'static + Send + Sync>(rw_lock: &'static crate::StateLock<S>, mount: F) {
+	let _ = std::mem::replace(&mut rw_lock.update_meta().mount, Box::new(mount));
 
-//     document().head().unwrap().append_child(&rw_lock.view_meta().style);
-//     // update(&rw_lock);
-// }
+	stdweb::web::document().head().unwrap().append_child(&rw_lock.view_meta().style);
+}

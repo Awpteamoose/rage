@@ -14,43 +14,47 @@ use stdweb::{
 use maplit::*;
 
 #[allow(missing_debug_implementations)]
-pub struct StateMeta<'vdom> {
+pub struct StateMeta {
 	pub style: Element,
-	pub mount: Box<dyn Fn() -> Element + Sync + Send>,
+	pub mount: Box<dyn Fn() -> crate::vdom::Element + Sync + Send>,
 	pub styles: RwLock<HashMap<String, String>>,
 	pub dirty: bool,
-	pub vdom: crate::vdom::Element<'vdom>,
+	pub vdom: crate::vdom::Element,
 }
 
-pub struct StateLockData<'vdom, S: Default> {
-	pub meta: RwLock<StateMeta<'vdom>>,
+pub struct StateLockData<S: Default> {
+	pub meta: RwLock<StateMeta>,
 	pub state: RwLock<S>,
 }
 
-pub struct StateLock<'vdom, S: Default>(pub StateLockData<'vdom, S>);
+pub struct StateLock<S: Default>(pub StateLockData<S>);
 
-impl<'vdom, S: Default> Default for StateLock<'vdom, S> {
+impl<S: Default> Default for StateLock<S> {
 	#[allow(clippy::result_unwrap_used)]
 	fn default() -> Self {
+		use stdweb::traits::*;
+
 		StateLock(StateLockData {
 			state: RwLock::new(S::default()),
 			meta: RwLock::new(StateMeta {
 				style: document().create_element("style").unwrap(),
-				mount: Box::new(|| document().create_element("div").unwrap()),
+				mount: Box::new(|| unreachable!()),
 				styles: RwLock::new(HashMap::default()),
 				dirty: false,
 				vdom: crate::vdom::Element {
+					dom_reference: Some(stdweb::web::Node::from(document().get_element_by_id("__rage").unwrap())),
 					tag: crate::primitives::Tag::div,
 					parent: None,
 					children: vec![],
 					attributes: hashmap![],
+					events: vec![],
 				},
 			}),
 		})
 	}
 }
 
-impl<'vdom, S: Default + 'static> StateLock<'vdom, S> {
+impl<S: Default + 'static> StateLock<S> {
 	pub fn update(&'static self) -> impl DerefMut<Target = S> + 'static {
 		let mut meta = self.0.meta.write().unwrap();
 		if !meta.dirty {
@@ -62,7 +66,7 @@ impl<'vdom, S: Default + 'static> StateLock<'vdom, S> {
 		// Arc::get_mut(&mut arc).unwrap()
 	}
 
-	pub fn update_meta(&'static self) -> impl DerefMut<Target = StateMeta<'vdom>> + 'static {
+	pub fn update_meta(&'static self) -> impl DerefMut<Target = StateMeta> + 'static {
 		// console!(log, self.meta.write().is_ok());
 		let mut meta = self.0.meta.write().unwrap();
 		if !meta.dirty {
@@ -75,12 +79,12 @@ impl<'vdom, S: Default + 'static> StateLock<'vdom, S> {
 		// Arc::get_mut(&mut arc).unwrap()
 	}
 
-	pub fn view(&'vdom self) -> impl Deref<Target = S> + 'vdom {
+	pub fn view(&'static self) -> impl Deref<Target = S> {
 		self.0.state.read().expect("view panic")
 		// Arc::clone(&self.state)
 	}
 
-	pub fn view_meta(&'vdom self) -> impl Deref<Target = StateMeta<'vdom>> + 'vdom {
+	pub fn view_meta(&'static self) -> impl Deref<Target = StateMeta> {
 		self.0.meta.read().expect("view meta panic")
 		// Arc::clone(&self.meta)
 	}
