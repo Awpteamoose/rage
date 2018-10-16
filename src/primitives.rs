@@ -66,7 +66,7 @@ macro_rules! __event_listeners {
 macro_rules! __primitives {
 	($($name: ident),+$(,)*) => {
 		#[allow(non_camel_case_types, dead_code)]
-		#[derive(Debug, AsStaticStr)]
+		#[derive(Debug, AsStaticStr, PartialEq, Eq, Hash, PartialOrd, Ord)]
 		pub enum Tag {
 			$($name,)+
 		}

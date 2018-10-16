@@ -8,7 +8,7 @@ fn hash(s: &str) -> String {
 	hasher.finish().to_string()
 }
 
-pub fn styled(lock: &StateLock<impl Default + 'static>, css: &str) -> String {
+pub fn styled(lock: &'static StateLock<'static, impl Default + 'static>, css: &str) -> String {
 	let class_hash = hash(&css);
 	let class = format!("styled{}", &class_hash);
 	let _ = lock.view_meta().styles.write().unwrap().insert(class.clone(), css.to_owned());

@@ -11,57 +11,63 @@ use stdweb::{
 	console,
 	js,
 };
+use maplit::*;
 
 #[allow(missing_debug_implementations)]
-pub struct StateMeta {
+pub struct StateMeta<'vdom> {
 	pub style: Element,
 	pub mount: Box<dyn Fn() -> Element + Sync + Send>,
 	pub styles: RwLock<HashMap<String, String>>,
 	pub dirty: bool,
+	pub vdom: crate::vdom::Element<'vdom>,
 }
 
-pub struct StateLockData<S: Default> {
-	pub meta: RwLock<StateMeta>,
+pub struct StateLockData<'vdom, S: Default> {
+	pub meta: RwLock<StateMeta<'vdom>>,
 	pub state: RwLock<S>,
 }
 
-pub struct StateLock<S: Default>(pub Arc<StateLockData<S>>);
+pub struct StateLock<'vdom, S: Default>(pub StateLockData<'vdom, S>);
 
-impl<S: Default> Default for StateLock<S> {
+impl<'vdom, S: Default> Default for StateLock<'vdom, S> {
 	#[allow(clippy::result_unwrap_used)]
 	fn default() -> Self {
-		StateLock(Arc::new(StateLockData {
+		StateLock(StateLockData {
 			state: RwLock::new(S::default()),
 			meta: RwLock::new(StateMeta {
 				style: document().create_element("style").unwrap(),
 				mount: Box::new(|| document().create_element("div").unwrap()),
 				styles: RwLock::new(HashMap::default()),
 				dirty: false,
+				vdom: crate::vdom::Element {
+					tag: crate::primitives::Tag::div,
+					parent: None,
+					children: vec![],
+					attributes: hashmap![],
+				},
 			}),
-		}))
+		})
 	}
 }
 
-impl<S: Default + 'static> StateLock<S> {
-	pub fn update<'a>(&'a self) -> impl DerefMut<Target = S> + 'a {
+impl<'vdom, S: Default + 'static> StateLock<'vdom, S> {
+	pub fn update(&'static self) -> impl DerefMut<Target = S> + 'static {
 		let mut meta = self.0.meta.write().unwrap();
 		if !meta.dirty {
 			meta.dirty = true;
-			let arc = Arc::clone(&self.0);
-			let _ = stdweb::web::window().request_animation_frame(move |_| crate::dom::update(&StateLock(arc)));
+			let _ = stdweb::web::window().request_animation_frame(move |_| crate::dom::update(self));
 		}
 		self.0.state.write().unwrap()
 		// let mut arc = Arc::clone(&self.state);
 		// Arc::get_mut(&mut arc).unwrap()
 	}
 
-	pub fn update_meta<'a>(&'a self) -> impl DerefMut<Target = StateMeta> + 'a {
+	pub fn update_meta(&'static self) -> impl DerefMut<Target = StateMeta<'vdom>> + 'static {
 		// console!(log, self.meta.write().is_ok());
 		let mut meta = self.0.meta.write().unwrap();
 		if !meta.dirty {
 			meta.dirty = true;
-			let arc = Arc::clone(&self.0);
-			let _ = stdweb::web::window().request_animation_frame(move |_| crate::dom::update(&StateLock(arc)));
+			let _ = stdweb::web::window().request_animation_frame(move |_| crate::dom::update(self));
 		}
 		meta
 
@@ -69,12 +75,12 @@ impl<S: Default + 'static> StateLock<S> {
 		// Arc::get_mut(&mut arc).unwrap()
 	}
 
-	pub fn view<'a>(&'a self) -> impl Deref<Target = S> + 'a {
+	pub fn view(&'vdom self) -> impl Deref<Target = S> + 'vdom {
 		self.0.state.read().expect("view panic")
 		// Arc::clone(&self.state)
 	}
 
-	pub fn view_meta<'a>(&'a self) -> impl Deref<Target = StateMeta> + 'a {
+	pub fn view_meta(&'vdom self) -> impl Deref<Target = StateMeta<'vdom>> + 'vdom {
 		self.0.meta.read().expect("view meta panic")
 		// Arc::clone(&self.meta)
 	}

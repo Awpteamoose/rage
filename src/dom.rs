@@ -92,14 +92,14 @@ pub fn update_node(parent: &mut Element, old: Option<Node>, new: Option<Node>) {
 }
 
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
-pub fn update<S: Default + 'static>(state_lock: &crate::cmp::StateLock<S>) {
+pub fn update<S: Default + 'static>(state_lock: &'static crate::cmp::StateLock<'static, S>) {
 	console!(log, "RERENDER");
 	state_lock.view_meta().styles.write().unwrap().clear();
 
 	let new_node = (state_lock.view_meta().mount)();
 
 	{
-		let crate::cmp::StateMeta { styles, style, .. }: &mut crate::cmp::StateMeta = &mut state_lock.0.meta.write().unwrap();
+		let crate::cmp::StateMeta { styles, style, .. }: &mut crate::cmp::StateMeta<'_> = &mut state_lock.0.meta.write().unwrap();
 
 		style.set_text_content(
 			&styles
@@ -118,7 +118,7 @@ pub fn update<S: Default + 'static>(state_lock: &crate::cmp::StateLock<S>) {
 }
 
 #[allow(clippy::option_unwrap_used)]
-pub fn mount<S: Default + 'static, F: Fn() -> Element + 'static + Send + Sync>(rw_lock: &crate::StateLock<S>, mount: F) {
+pub fn mount<S: Default + 'static, F: Fn() -> Element + 'static + Send + Sync>(rw_lock: &'static crate::StateLock<'static, S>, mount: F) {
 	let _ = std::mem::replace(&mut rw_lock.update_meta().mount, Box::new(mount));
 
 	document().head().unwrap().append_child(&rw_lock.view_meta().style);
