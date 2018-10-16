@@ -58,7 +58,6 @@
 #![feature(try_from, try_trait, never_type)]
 #![feature(async_await, await_macro, futures_api, pin)]
 
-mod dom;
 #[macro_use]
 mod primitives;
 mod cmp;
@@ -107,7 +106,7 @@ lazy_static::lazy_static! {
 	};
 }
 
-const GRID_SIZE: u32 = 100;
+const GRID_SIZE: u32 = 150;
 const CELL_SIZE: u32 = 5;
 type Cell = (u32, u32);
 type Cells = HashSet<(u32, u32)>;
@@ -154,7 +153,7 @@ pub struct MyState {
 
 fn fetch(url: &str) -> PromiseFuture<String> {
 	#[allow(clippy::result_unwrap_used)]
-	js!(return fetch(@{url}).then((r)=>r.text());).try_into().expect(&format!("{}:{}", file!(), line!()))
+	js!(return fetch(@{url}).then((r)=>r.text());).try_into().unwrap()
 }
 
 async fn print(message: &str) {
@@ -256,7 +255,7 @@ fn randomize_button() -> Element {
 
 				for x in 0..GRID_SIZE {
 					for y in 0..GRID_SIZE {
-						if RNG.lock().expect(&format!("{}:{}", file!(), line!())).next_u32() > (u32::max_value() / 2) {
+						if RNG.lock().unwrap().next_u32() > (u32::max_value() / 2) {
 							let _ = state.cells.insert((x, y));
 						} else {
 							let _ = state.cells.remove(&(x, y));
@@ -284,7 +283,7 @@ fn container() -> Element {
 }
 
 fn root() -> Element {
-	console!(log, "ROOOOT");
+	// console!(log, "ROOOOT");
 	primitives::div(
 		children![
 			start_button(),

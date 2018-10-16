@@ -1,4 +1,3 @@
-use crate::dom;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use stdweb::web::{document, Element};
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -35,17 +34,14 @@ impl<S: Default> Default for StateLock<S> {
 		StateLock(StateLockData {
 			state: RwLock::new(S::default()),
 			meta: RwLock::new(StateMeta {
-				style: document().create_element("style").expect(&format!("{}:{}", file!(), line!())),
-				mount: Box::new(|| {
-					console!(log, "NIGGER NIGGER NIGGER");
-					unimplemented!()
-				}),
+				style: document().create_element("style").unwrap(),
+				mount: Box::new(|| unimplemented!() ),
 				styles: RwLock::new(HashMap::default()),
 				dirty: false,
 				vdom: crate::vdom::Element::new(
 					crate::primitives::Tag::div,
 					vec![],
-					attrs!["nigg" => "lol"],
+					attrs![],
 					vec![],
 				),
 			}),
@@ -55,19 +51,19 @@ impl<S: Default> Default for StateLock<S> {
 
 impl<S: Default + 'static> StateLock<S> {
 	pub fn update(&'static self) -> impl DerefMut<Target = S> + 'static {
-		let mut meta = self.0.meta.write().expect(&format!("{}:{}", file!(), line!()));
+		let mut meta = self.0.meta.write().unwrap();
 		if !meta.dirty {
 			meta.dirty = true;
 			let _ = stdweb::web::window().request_animation_frame(move |_| crate::vdom::update(self));
 		}
-		self.0.state.write().expect(&format!("{}:{}", file!(), line!()))
+		self.0.state.write().unwrap()
 		// let mut arc = Arc::clone(&self.state);
-		// Arc::get_mut(&mut arc).expect(&format!("{}:{}", file!(), line!()))
+		// Arc::get_mut(&mut arc).unwrap()
 	}
 
 	pub fn update_meta(&'static self) -> impl DerefMut<Target = StateMeta> + 'static {
 		// console!(log, self.meta.write().is_ok());
-		let mut meta = self.0.meta.write().expect(&format!("{}:{}", file!(), line!()));
+		let mut meta = self.0.meta.write().unwrap();
 		if !meta.dirty {
 			meta.dirty = true;
 			let _ = stdweb::web::window().request_animation_frame(move |_| crate::vdom::update(self));
@@ -75,7 +71,7 @@ impl<S: Default + 'static> StateLock<S> {
 		meta
 
 		// let mut arc = Arc::clone(&self.meta);
-		// Arc::get_mut(&mut arc).expect(&format!("{}:{}", file!(), line!()))
+		// Arc::get_mut(&mut arc).unwrap()
 	}
 
 	pub fn view(&'static self) -> impl Deref<Target = S> {
