@@ -4,6 +4,7 @@ use stdweb::{
 	web::{document, Element, INode, Node, event},
 };
 use strum_macros::AsStaticStr;
+use std::sync::{Arc, RwLock};
 
 // TODO: I could skip the Event bit, but concat_idents! doesn't work properly ¯\_(ツ)_/¯
 macro_rules! __event_idents {
@@ -75,25 +76,11 @@ macro_rules! __primitives {
 		$(
 			#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used, dead_code, non_snake_case, clippy::redundant_closure)]
 			pub fn $name(
-				children: &[&Node],
-				attributes: &HashMap<&str, String>,
+				children: Vec<crate::vdom::Element>,
+				attributes: HashMap<String, String>,
 				event_handlers: Vec<EventHandler>,
-			) -> Element {
-				let element = document().create_element(stringify!($name)).unwrap();
-
-				for child in children {
-					element.append_child(*child);
-				}
-
-				for (name, value) in attributes.iter() {
-					element.set_attribute(name, value).unwrap();
-				}
-
-				for handler in event_handlers.into_iter() {
-					__event_idents![__event_listeners, handler, element];
-				}
-
-				element
+			) -> crate::vdom::Element {
+				crate::vdom::Element::new(Tag::$name, children, attributes, event_handlers)
 			}
 		)+
 	};
@@ -124,19 +111,19 @@ pub fn text_node(s: &str) -> Node { Node::from(document().create_text_node(s)) }
 
 macro_rules! children {
 	() => {
-		&[]
+		vec![]
 	};
 	($($e: expr),+$(,)*) => {
-		&[$($e,)+]
+		vec![$($e,)+]
 	};
 }
 
 macro_rules! attrs {
 	() => {
-		&hashmap![]
+		hashmap![]
 	};
 	($($k: expr => $v: expr),+$(,)*) => {
-		&hashmap![$($k => $v.into(),)+]
+		hashmap![$($k.into() => $v.into(),)+]
 	};
 }
 

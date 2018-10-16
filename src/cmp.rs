@@ -32,23 +32,22 @@ pub struct StateLock<S: Default>(pub StateLockData<S>);
 impl<S: Default> Default for StateLock<S> {
 	#[allow(clippy::result_unwrap_used)]
 	fn default() -> Self {
-		use stdweb::traits::*;
-
 		StateLock(StateLockData {
 			state: RwLock::new(S::default()),
 			meta: RwLock::new(StateMeta {
-				style: document().create_element("style").unwrap(),
-				mount: Box::new(|| unreachable!()),
+				style: document().create_element("style").expect(&format!("{}:{}", file!(), line!())),
+				mount: Box::new(|| {
+					console!(log, "NIGGER NIGGER NIGGER");
+					unimplemented!()
+				}),
 				styles: RwLock::new(HashMap::default()),
 				dirty: false,
-				vdom: crate::vdom::Element {
-					dom_reference: Some(stdweb::web::Node::from(document().get_element_by_id("__rage").unwrap())),
-					tag: crate::primitives::Tag::div,
-					parent: None,
-					children: vec![],
-					attributes: hashmap![],
-					events: vec![],
-				},
+				vdom: crate::vdom::Element::new(
+					crate::primitives::Tag::div,
+					vec![],
+					attrs!["nigg" => "lol"],
+					vec![],
+				),
 			}),
 		})
 	}
@@ -56,27 +55,27 @@ impl<S: Default> Default for StateLock<S> {
 
 impl<S: Default + 'static> StateLock<S> {
 	pub fn update(&'static self) -> impl DerefMut<Target = S> + 'static {
-		let mut meta = self.0.meta.write().unwrap();
+		let mut meta = self.0.meta.write().expect(&format!("{}:{}", file!(), line!()));
 		if !meta.dirty {
 			meta.dirty = true;
-			let _ = stdweb::web::window().request_animation_frame(move |_| crate::dom::update(self));
+			let _ = stdweb::web::window().request_animation_frame(move |_| crate::vdom::update(self));
 		}
-		self.0.state.write().unwrap()
+		self.0.state.write().expect(&format!("{}:{}", file!(), line!()))
 		// let mut arc = Arc::clone(&self.state);
-		// Arc::get_mut(&mut arc).unwrap()
+		// Arc::get_mut(&mut arc).expect(&format!("{}:{}", file!(), line!()))
 	}
 
 	pub fn update_meta(&'static self) -> impl DerefMut<Target = StateMeta> + 'static {
 		// console!(log, self.meta.write().is_ok());
-		let mut meta = self.0.meta.write().unwrap();
+		let mut meta = self.0.meta.write().expect(&format!("{}:{}", file!(), line!()));
 		if !meta.dirty {
 			meta.dirty = true;
-			let _ = stdweb::web::window().request_animation_frame(move |_| crate::dom::update(self));
+			let _ = stdweb::web::window().request_animation_frame(move |_| crate::vdom::update(self));
 		}
 		meta
 
 		// let mut arc = Arc::clone(&self.meta);
-		// Arc::get_mut(&mut arc).unwrap()
+		// Arc::get_mut(&mut arc).expect(&format!("{}:{}", file!(), line!()))
 	}
 
 	pub fn view(&'static self) -> impl Deref<Target = S> {

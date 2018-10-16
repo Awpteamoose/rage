@@ -85,9 +85,11 @@ use stdweb::{
 	traits::*,
 	unstable::TryInto,
 	unwrap_future,
-	web::{error::Error, event::{self, ConcreteEvent}, wait, Element},
+	web::{error::Error, event::{self, ConcreteEvent}, wait, Element as DomElement},
 	PromiseFuture,
 };
+use self::vdom::Element;
+use std::sync::{Arc, RwLock};
 
 lazy_static::lazy_static! {
 	static ref STATE: StateLock<MyState> = StateLock::default();
@@ -106,7 +108,7 @@ lazy_static::lazy_static! {
 }
 
 const GRID_SIZE: u32 = 100;
-const CELL_SIZE: u32 = 10;
+const CELL_SIZE: u32 = 5;
 type Cell = (u32, u32);
 type Cells = HashSet<(u32, u32)>;
 
@@ -152,7 +154,7 @@ pub struct MyState {
 
 fn fetch(url: &str) -> PromiseFuture<String> {
 	#[allow(clippy::result_unwrap_used)]
-	js!(return fetch(@{url}).then((r)=>r.text());).try_into().unwrap()
+	js!(return fetch(@{url}).then((r)=>r.text());).try_into().expect(&format!("{}:{}", file!(), line!()))
 }
 
 async fn print(message: &str) {
@@ -208,10 +210,12 @@ fn cells() -> Vec<Element> {
 				],
 				events![
 					move |_: event::ClickEvent| {
+						console!(log, "click start");
 						let state = &mut STATE.update();
 
 						if state.cells.get(&(x, y)).is_some() { let _ = state.cells.remove(&(x, y)); }
-						else { let _ = state.cells.insert((x, y)); }
+						else { let _ = state.cells.insert((x, y)); };
+						console!(log, "click end");
 					},
 				],
 			));
@@ -252,7 +256,7 @@ fn randomize_button() -> Element {
 
 				for x in 0..GRID_SIZE {
 					for y in 0..GRID_SIZE {
-						if RNG.lock().unwrap().next_u32() > (u32::max_value() / 2) {
+						if RNG.lock().expect(&format!("{}:{}", file!(), line!())).next_u32() > (u32::max_value() / 2) {
 							let _ = state.cells.insert((x, y));
 						} else {
 							let _ = state.cells.remove(&(x, y));
@@ -266,7 +270,7 @@ fn randomize_button() -> Element {
 
 fn container() -> Element {
 	primitives::div(
-		&cells().iter().map(Element::as_node).collect::<Vec<_>>(),
+		cells(),
 		attrs![
 			"class" => styled(&STATE, &format!(r#"
 				user-select: none;
@@ -280,11 +284,12 @@ fn container() -> Element {
 }
 
 fn root() -> Element {
+	console!(log, "ROOOOT");
 	primitives::div(
 		children![
-			start_button().as_node(),
-			randomize_button().as_node(),
-			container().as_node(),
+			start_button(),
+			randomize_button(),
+			container(),
 		],
 		attrs![],
 		events![],
@@ -297,7 +302,7 @@ fn main() {
 
 	spawn_local(async move {
 		loop {
-			await!(wait(250));
+			await!(wait(50));
 			if !STATE.view().running { continue; }
 
 			let state = &mut STATE.update();
@@ -306,7 +311,7 @@ fn main() {
 			let mut dead = Vec::new();
 
 			if state.running {
-				console!(log, "TICK");
+				// console!(log, "TICK");
 
 				for x in 0..GRID_SIZE {
 					for y in 0..GRID_SIZE {
@@ -330,9 +335,11 @@ fn main() {
 				for point in dead.into_iter() {
 					let _ = state.cells.remove(&point);
 				}
+
+				// console!(log, "TICK END");
 			}
 		}
 	});
 
-	dom::mount(&STATE, root);
+	vdom::mount(&STATE, root);
 }
