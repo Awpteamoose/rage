@@ -64,15 +64,13 @@ mod cmp;
 mod styled;
 mod vdom;
 
-use self::styled::styled;
+use self::{styled::styled, vdom::Element};
 use crate::cmp::*;
 use futures::{join, try_join};
 use maplit::*;
 use std::{
-	collections::{
-		HashMap,
-		HashSet,
-	},
+	collections::{HashMap, HashSet},
+	sync::{Arc, RwLock},
 };
 use stdweb::{
 	__internal_console_unsafe,
@@ -84,11 +82,14 @@ use stdweb::{
 	traits::*,
 	unstable::TryInto,
 	unwrap_future,
-	web::{error::Error, event::{self, ConcreteEvent}, wait, Element as DomElement},
+	web::{
+		error::Error,
+		event::{self, ConcreteEvent},
+		wait,
+		Element as DomElement,
+	},
 	PromiseFuture,
 };
-use self::vdom::Element;
-use std::sync::{Arc, RwLock};
 
 lazy_static::lazy_static! {
 	static ref STATE: StateLock<MyState> = StateLock::default();
@@ -107,7 +108,7 @@ lazy_static::lazy_static! {
 }
 
 const GRID_SIZE: u32 = 75;
-const CELL_SIZE: u32 = 10;
+const CELL_SIZE: u32 = 12;
 type Cell = (u32, u32);
 type Cells = HashSet<(u32, u32)>;
 

@@ -1,25 +1,20 @@
+use maplit::*;
+use std::{
+	collections::{HashMap, HashSet},
+	ops::{Deref, DerefMut},
+	sync::{Arc, RwLock},
+};
 use stdweb::{
 	__internal_console_unsafe,
 	__js_raw_asm,
 	_js_impl,
-	js,
 	console,
+	js,
 	traits::*,
-	web::{
-		document,
-		Element as DomElement,
-		Node as DomNode,
-	},
 	unstable::TryFrom,
+	web::{document, Element as DomElement, Node as DomNode},
 };
-use std::collections::{
-	HashMap,
-	HashSet,
-};
-use maplit::*;
 use strum::AsStaticRef;
-use std::sync::{Arc, RwLock};
-use std::ops::{Deref, DerefMut};
 
 pub struct Element {
 	pub dom_reference: Option<DomElement>,
@@ -32,9 +27,7 @@ pub struct Element {
 
 impl PartialEq for Element {
 	fn eq(&self, other: &Self) -> bool {
-		self.tag == other.tag &&
-		self.children == other.children &&
-		self.attributes == other.attributes
+		self.tag == other.tag && self.children == other.children && self.attributes == other.attributes
 	}
 }
 
@@ -42,14 +35,19 @@ impl Eq for Element {}
 
 impl std::fmt::Debug for Element {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "<{tag}{attributes}>{children}</div>",
-			tag=self.tag.as_static(),
-			attributes=self.attributes.iter().fold(String::new(), |acc, (key, value)|
-				acc + &format!(r#" "{key}"="{value}""#, key=key, value=value)
-			),
-			children=self.children.iter().fold(String::new(), |acc, child|
-				acc + &format!("{:?}\n", child)
-			),
+		write!(
+			f,
+			"<{tag}{attributes}>{children}</div>",
+			tag = self.tag.as_static(),
+			attributes = self.attributes.iter().fold(String::new(), |acc, (key, value)| acc + &format!(
+				r#" "{key}"="{value}""#,
+				key = key,
+				value = value
+			)),
+			children = self
+				.children
+				.iter()
+				.fold(String::new(), |acc, child| acc + &format!("{:?}\n", child)),
 		)
 	}
 }

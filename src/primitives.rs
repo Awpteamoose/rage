@@ -1,36 +1,37 @@
-use std::collections::HashMap;
+use std::{
+	collections::HashMap,
+	sync::{Arc, RwLock},
+};
 use stdweb::{
 	traits::*,
-	web::{document, Element, INode, Node, event},
+	web::{document, event, Element, INode, Node},
 };
 use strum_macros::AsStaticStr;
-use std::sync::{Arc, RwLock};
 
 // TODO: I could skip the Event bit, but concat_idents! doesn't work properly ¯\_(ツ)_/¯
 macro_rules! __event_idents {
 	($m: ident, $arg1: ident, $arg2: ident) => {$m![$arg1, $arg2,
-		ClickEvent, BlurEvent,
-		// AuxClickEvent, BlurEvent, ChangeEvent,
-		// ClickEvent, ContextMenuEvent, DoubleClickEvent,
-		// DragDropEvent, DragEndEvent, DragEnterEvent,
-		// DragEvent, DragExitEvent, DragLeaveEvent,
-		// DragOverEvent, DragStartEvent, FocusEvent,
-		// GamepadConnectedEvent, GamepadDisconnectedEvent, GotPointerCaptureEvent,
-		// HashChangeEvent, InputEvent, KeyDownEvent,
-		// KeyPressEvent, KeyUpEvent, LoadEndEvent,
-		// LoadStartEvent, LostPointerCaptureEvent, MouseDownEvent,
-		// MouseEnterEvent, MouseLeaveEvent, MouseMoveEvent,
-		// MouseOutEvent, MouseOverEvent, MouseUpEvent,
-		// MouseWheelEvent, PointerCancelEvent, PointerDownEvent,
-		// PointerEnterEvent, PointerLeaveEvent, PointerLockChangeEvent,
-		// PointerLockErrorEvent, PointerMoveEvent, PointerOutEvent,
-		// PointerOverEvent, PointerUpEvent, PopStateEvent,
-		// ProgressAbortEvent, ProgressErrorEvent, ProgressEvent,
-		// ProgressLoadEvent, ReadyStateChangeEvent, ResizeEvent,
-		// ResourceAbortEvent, ResourceErrorEvent, ResourceLoadEvent,
-		// ScrollEvent, SelectionChangeEvent, SocketCloseEvent,
-		// SocketErrorEvent, SocketMessageEvent, SocketOpenEvent,
-		// SubmitEvent,
+		AuxClickEvent, BlurEvent, ChangeEvent,
+		ClickEvent, ContextMenuEvent, DoubleClickEvent,
+		DragDropEvent, DragEndEvent, DragEnterEvent,
+		DragEvent, DragExitEvent, DragLeaveEvent,
+		DragOverEvent, DragStartEvent, FocusEvent,
+		GamepadConnectedEvent, GamepadDisconnectedEvent, GotPointerCaptureEvent,
+		HashChangeEvent, InputEvent, KeyDownEvent,
+		KeyPressEvent, KeyUpEvent, LoadEndEvent,
+		LoadStartEvent, LostPointerCaptureEvent, MouseDownEvent,
+		MouseEnterEvent, MouseLeaveEvent, MouseMoveEvent,
+		MouseOutEvent, MouseOverEvent, MouseUpEvent,
+		MouseWheelEvent, PointerCancelEvent, PointerDownEvent,
+		PointerEnterEvent, PointerLeaveEvent, PointerLockChangeEvent,
+		PointerLockErrorEvent, PointerMoveEvent, PointerOutEvent,
+		PointerOverEvent, PointerUpEvent, PopStateEvent,
+		ProgressAbortEvent, ProgressErrorEvent, ProgressEvent,
+		ProgressLoadEvent, ReadyStateChangeEvent, ResizeEvent,
+		ResourceAbortEvent, ResourceErrorEvent, ResourceLoadEvent,
+		ScrollEvent, SelectionChangeEvent, SocketCloseEvent,
+		SocketErrorEvent, SocketMessageEvent, SocketOpenEvent,
+		SubmitEvent,
 	];};
 }
 
@@ -87,27 +88,28 @@ macro_rules! __primitives {
 }
 
 __primitives!(
-	div, input,
-	// a, abbr, address, area, article, aside, audio, b,
-	// base, bdi, bdo, big, blockquote, body, br, button,
-	// canvas, caption, circle, cite, clipPath, code, col, colgroup,
-	// data, datalist, dd, defs, del, details, dfn, dialog,
-	// div, dl, dt, ellipse, em, embed, fieldset, figcaption,
-	// figure, footer, foreignObject, form, g, h1, h2, h3,
-	// h4, h5, h6, head, header, hgroup, hr, html,
-	// i, iframe, image, img, input, ins, kbd, keygen,
-	// label, legend, li, line, linearGradient, link, main, map,
-	// mark, marquee, mask, menu, menuitem, meta, meter, nav,
-	// noscript, object, ol, optgroup, option, output, p, param,
-	// path, pattern, picture, polygon, polyline, pre, progress, prototype,
-	// q, radialGradient, rect, rp, rt, ruby, s, samp,
-	// script, section, select, small, source, span, stop, strong,
-	// style, sub, summary, sup, svg, table, tbody, td,
-	// text, textarea, tfoot, th, thead, time, title, tr,
-	// track, tspan, u, ul, var, video, wbr,
+	a, abbr, address, area, article, aside, audio, b,
+	base, bdi, bdo, big, blockquote, body, br, button,
+	canvas, caption, circle, cite, clipPath, code, col, colgroup,
+	data, datalist, dd, defs, del, details, dfn, dialog,
+	div, dl, dt, ellipse, em, embed, fieldset, figcaption,
+	figure, footer, foreignObject, form, g, h1, h2, h3,
+	h4, h5, h6, head, header, hgroup, hr, html,
+	i, iframe, image, img, input, ins, kbd, keygen,
+	label, legend, li, line, linearGradient, link, main, map,
+	mark, marquee, mask, menu, menuitem, meta, meter, nav,
+	noscript, object, ol, optgroup, option, output, p, param,
+	path, pattern, picture, polygon, polyline, pre, progress, prototype,
+	q, radialGradient, rect, rp, rt, ruby, s, samp,
+	script, section, select, small, source, span, stop, strong,
+	style, sub, summary, sup, svg, table, tbody, td,
+	text, textarea, tfoot, th, thead, time, title, tr,
+	track, tspan, u, ul, var, video, wbr,
 );
 
-pub fn text_node(s: &str) -> Node { Node::from(document().create_text_node(s)) }
+pub fn text_node(s: &str) -> Node {
+	Node::from(document().create_text_node(s))
+}
 
 macro_rules! children {
 	() => {

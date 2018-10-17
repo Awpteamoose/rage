@@ -1,16 +1,19 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
-use stdweb::web::{document, Element};
-use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
-use std::sync::Arc;
-use std::ops::{Deref, DerefMut};
+use maplit::*;
+use std::{
+	cell::RefCell,
+	collections::HashMap,
+	ops::{Deref, DerefMut},
+	rc::Rc,
+	sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
+};
 use stdweb::{
 	__internal_console_unsafe,
 	__js_raw_asm,
 	_js_impl,
 	console,
 	js,
+	web::{document, Element},
 };
-use maplit::*;
 
 #[allow(missing_debug_implementations)]
 pub struct StateMeta {
@@ -35,15 +38,10 @@ impl<S: Default> Default for StateLock<S> {
 			state: RwLock::new(S::default()),
 			meta: RwLock::new(StateMeta {
 				style: document().create_element("style").unwrap(),
-				mount: Box::new(|| unimplemented!() ),
+				mount: Box::new(|| unimplemented!()),
 				styles: RwLock::new(HashMap::default()),
 				dirty: false,
-				vdom: crate::vdom::Element::new(
-					crate::primitives::Tag::div,
-					vec![],
-					attrs![],
-					vec![],
-				),
+				vdom: crate::vdom::Element::new(crate::primitives::Tag::div, vec![], attrs![], vec![]),
 			}),
 		})
 	}
