@@ -71,7 +71,7 @@ impl Element {
 			// console!(log, "REASSIGN HANDLERS");
 		}
 		let event_handlers = std::mem::replace(&mut self.event_handlers, vec![]);
-		for handler in event_handlers.into_iter() {
+		for handler in event_handlers {
 			__event_idents![__event_listeners, handler, element];
 		}
 
