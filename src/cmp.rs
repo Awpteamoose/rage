@@ -1,10 +1,8 @@
 use maplit::*;
 use std::{
-	cell::RefCell,
 	collections::HashMap,
 	ops::{Deref, DerefMut},
-	rc::Rc,
-	sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
+	sync::RwLock,
 };
 use stdweb::{
 	__internal_console_unsafe,
@@ -51,6 +49,7 @@ impl<S: Default + 'static> StateLock<S> {
 	pub fn update(&'static self) -> impl DerefMut<Target = S> + 'static {
 		let mut meta = self.0.meta.write().unwrap();
 		if !meta.dirty {
+			// console!(log, "DIRTY");
 			meta.dirty = true;
 			let _ = stdweb::web::window().request_animation_frame(move |_| crate::vdom::update(self));
 		}
@@ -63,6 +62,7 @@ impl<S: Default + 'static> StateLock<S> {
 		// console!(log, self.meta.write().is_ok());
 		let mut meta = self.0.meta.write().unwrap();
 		if !meta.dirty {
+			// console!(log, "DIRTY");
 			meta.dirty = true;
 			let _ = stdweb::web::window().request_animation_frame(move |_| crate::vdom::update(self));
 		}

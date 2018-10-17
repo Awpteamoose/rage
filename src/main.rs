@@ -68,10 +68,7 @@ use self::{styled::styled, vdom::Element};
 use crate::cmp::*;
 use futures::{join, try_join};
 use maplit::*;
-use std::{
-	collections::{HashMap, HashSet},
-	sync::{Arc, RwLock},
-};
+use std::collections::HashSet;
 use stdweb::{
 	__internal_console_unsafe,
 	__js_raw_asm,
@@ -79,14 +76,12 @@ use stdweb::{
 	console,
 	js,
 	spawn_local,
-	traits::*,
 	unstable::TryInto,
 	unwrap_future,
 	web::{
 		error::Error,
-		event::{self, ConcreteEvent},
+		event,
 		wait,
-		Element as DomElement,
 	},
 	PromiseFuture,
 };
@@ -287,6 +282,10 @@ fn root() -> Element {
 	// console!(log, "ROOOOT");
 	primitives::div(
 		children![
+			"I have a big nose",
+			primitives::div(children!["wow"], attrs![], events![]),
+			"I have a big nose",
+			primitives::div(children!["that's a big nose"], attrs![], events![]),
 			start_button(),
 			randomize_button(),
 			container(),
@@ -302,7 +301,11 @@ fn main() {
 
 	spawn_local(async move {
 		loop {
-			await!(wait(50));
+			// await!(wait(250));
+			await!(wait(0));
+			if STATE.view_meta().dirty {
+				continue;
+			}
 			if !STATE.view().running { continue; }
 
 			let state = &mut STATE.update();

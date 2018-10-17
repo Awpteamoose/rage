@@ -1,6 +1,6 @@
 use crate::cmp::StateLock;
 use std::{
-	collections::{hash_map::DefaultHasher, HashMap},
+	collections::hash_map::DefaultHasher,
 	hash::Hasher,
 };
 
