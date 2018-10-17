@@ -84,7 +84,27 @@ use stdweb::{
 		wait,
 	},
 	PromiseFuture,
+	traits::*,
+	unstable::TryFrom,
 };
+use std::ops::Add;
+
+// TODO: use this with simple RefCells
+// thread_local! {
+//     pub static STATE: StateLock<MyState> = StateLock::default();
+
+//     pub static RNG: std::sync::Mutex<rand::rngs::SmallRng> = {
+//         use rand::prelude::*;
+
+//         let mut bytes: [u8; 16] = [0; 16];
+//         let seed: [u8; 8] = unsafe { std::mem::transmute(stdweb::web::Date::new().get_time()) };
+//         for (index, byte) in seed.iter().enumerate() {
+//             bytes[index] = *byte;
+//             bytes[index + 8] = *byte;
+//         }
+//         std::sync::Mutex::new(rand::rngs::SmallRng::from_seed(bytes))
+//     };
+// }
 
 lazy_static::lazy_static! {
 	static ref STATE: StateLock<MyState> = StateLock::default();
@@ -102,49 +122,74 @@ lazy_static::lazy_static! {
 	};
 }
 
-const GRID_SIZE: u32 = 75;
 const CELL_SIZE: u32 = 12;
-type Cell = (u32, u32);
-type Cells = HashSet<(u32, u32)>;
+type Cell = ToroidalPoint;
+type Cells = HashSet<ToroidalPoint>;
 
-fn neighbours(cells: &Cells, point: Cell) -> Vec<Cell> {
-	let mut res = Vec::new();
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+struct ToroidalPoint(u32, u32);
 
-	// SW
-	if let (Some(x), Some(y)) = (point.0.checked_sub(1), point.1.checked_sub(1)) {
-		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
-	}
-	// W
-	if let (Some(x), y) = (point.0.checked_sub(1), point.1) {
-		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
-	}
-	// S
-	if let (x, Some(y)) = (point.0, point.1.checked_sub(1)) {
-		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
-	}
-	// SE
-	if let (x, Some(y)) = (point.0 + 1, point.1.checked_sub(1)) {
-		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
-	}
-	// NW
-	if let (Some(x), y) = (point.0.checked_sub(1), point.1 + 1) {
-		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
-	}
-	// E
-	if cells.get(&(point.0 + 1, point.1)).is_some() { res.push((point.0, point.1)); }
-	// N
-	if cells.get(&(point.0, point.1 + 1)).is_some() { res.push((point.0, point.1)); }
-	// NE
-	if cells.get(&(point.0 + 1, point.1 + 1)).is_some() { res.push((point.0, point.1)); }
+#[allow(clippy::suspicious_arithmetic_impl)]
+impl Add<(i32, i32)> for ToroidalPoint {
+	type Output = Self;
 
-	res
+	fn add(self, other: (i32, i32)) -> Self {
+		let grid_size = STATE.view().grid_size;
+
+		let x = if other.0 > 0 {
+			let x = self.0 + other.0 as u32;
+			if x >= grid_size { x - grid_size }
+			else { x }
+		} else {
+			let other_x = other.0.abs() as u32;
+			let x = self.0.checked_sub(other_x);
+			if let Some(x) = x { x } else { grid_size - other_x + self.0 }
+		};
+		let y = if other.1 > 0 {
+			let y = self.1 + other.1 as u32;
+			if y >= grid_size { y - grid_size }
+			else { y }
+		} else {
+			let other_y = other.1.abs() as u32;
+			let y = self.1.checked_sub(other_y);
+			if let Some(y) = y { y } else { grid_size - other_y + self.1 }
+		};
+
+		ToroidalPoint(x, y)
+	}
 }
 
-#[derive(Default, Debug)]
+fn neighbours(cells: &Cells, point: Cell) -> Vec<Cell> {
+	vec![
+		point + (-1, -1),
+		point + (-1, 0),
+		point + (-1, 1),
+		point + (0, -1),
+		point + (0, 1),
+		point + (1, -1),
+		point + (1, 0),
+		point + (1, 1),
+	]
+		.into_iter()
+		.filter(|x| cells.contains(&x))
+		.collect::<Vec<_>>()
+}
+
+#[derive(Debug)]
 pub struct MyState {
 	cells: Cells,
-	some_value: i32,
 	running: bool,
+	grid_size: u32,
+}
+
+impl Default for MyState {
+	fn default() -> Self {
+		Self {
+			cells: Cells::default(),
+			running: false,
+			grid_size: 75,
+		}
+	}
 }
 
 fn fetch(url: &str) -> PromiseFuture<String> {
@@ -189,9 +234,10 @@ async fn future_main() -> Result<(), Error> {
 
 fn cells() -> Vec<Element> {
 	let mut divs = Vec::new();
+	let grid_size = STATE.view().grid_size;
 
-	for x in 0..GRID_SIZE {
-		for y in 0..GRID_SIZE {
+	for x in 0..grid_size {
+		for y in 0..grid_size {
 			divs.push(primitives::div(
 				children![],
 				attrs![
@@ -200,7 +246,7 @@ fn cells() -> Vec<Element> {
 						background-color: {color};
 						box-sizing: content-box;
 					"#,
-						color = if STATE.view().cells.get(&(x, y)).is_some() { "black" } else { "white" }
+						color = if STATE.view().cells.get(&ToroidalPoint(x, y)).is_some() { "black" } else { "white" }
 					)),
 				],
 				events![
@@ -208,8 +254,8 @@ fn cells() -> Vec<Element> {
 						console!(log, "click start");
 						let state = &mut STATE.update();
 
-						if state.cells.get(&(x, y)).is_some() { let _ = state.cells.remove(&(x, y)); }
-						else { let _ = state.cells.insert((x, y)); };
+						if state.cells.get(&ToroidalPoint(x, y)).is_some() { let _ = state.cells.remove(&ToroidalPoint(x, y)); }
+						else { let _ = state.cells.insert(ToroidalPoint(x, y)); };
 						console!(log, "click end");
 					},
 				],
@@ -248,18 +294,60 @@ fn randomize_button() -> Element {
 				use rand::prelude::*;
 
 				let state = &mut STATE.update();
+				let grid_size = state.grid_size;
 
-				for x in 0..GRID_SIZE {
-					for y in 0..GRID_SIZE {
+				for x in 0..grid_size {
+					for y in 0..grid_size {
 						if RNG.lock().unwrap().next_u32() > (u32::max_value() / 2) {
-							let _ = state.cells.insert((x, y));
+							let _ = state.cells.insert(ToroidalPoint(x, y));
 						} else {
-							let _ = state.cells.remove(&(x, y));
+							let _ = state.cells.remove(&ToroidalPoint(x, y));
 						}
 					}
 				}
 			},
 		],
+	)
+}
+
+fn clear_button() -> Element {
+	primitives::input(
+		children![],
+		attrs![
+			"type" => "button",
+			"value" => "clear",
+		],
+		events![
+			move |_: event::ClickEvent| {
+				STATE.update().cells.clear();
+			},
+		],
+	)
+}
+
+fn size() -> Element {
+	primitives::div(
+		children![
+			"Grid size",
+			primitives::input(
+				children![],
+				attrs![
+					"type" => "range",
+					"min" => "10",
+					"max" => "100",
+					"style" => "width: 1000px",
+					"value" => STATE.view().grid_size.to_string(),
+				],
+				events![
+					move |e: event::InputEvent| {
+						let value = stdweb::web::html_element::InputElement::try_from(e.current_target().unwrap()).unwrap().raw_value();
+						STATE.update().grid_size = value.parse().unwrap();
+					},
+				],
+			)
+		],
+		attrs![],
+		events![],
 	)
 }
 
@@ -272,7 +360,7 @@ fn container() -> Element {
 				display: grid;
 				grid-template-columns: repeat({grid_size}, {cell_size}px);
 				grid-template-rows: repeat({grid_size}, {cell_size}px);
-			"#, grid_size = GRID_SIZE, cell_size = CELL_SIZE)),
+			"#, grid_size = STATE.view().grid_size, cell_size = CELL_SIZE)),
 		],
 		events![],
 	)
@@ -288,6 +376,8 @@ fn root() -> Element {
 			primitives::div(children!["that's a big nose"], attrs![], events![]),
 			start_button(),
 			randomize_button(),
+			clear_button(),
+			size(),
 			container(),
 		],
 		attrs![],
@@ -308,39 +398,39 @@ fn main() {
 			}
 			if !STATE.view().running { continue; }
 
-			let state = &mut STATE.update();
-
 			let mut living = Vec::new();
 			let mut dead = Vec::new();
+			{
+				let state = &STATE.view();
+				let grid_size = state.grid_size;
 
-			if state.running {
 				// console!(log, "TICK");
-
-				for x in 0..GRID_SIZE {
-					for y in 0..GRID_SIZE {
-						if state.cells.get(&(x, y)).is_none() && (neighbours(&state.cells, (x, y)).len() == 3) {
-							living.push((x, y));
+				for x in 0..grid_size {
+					for y in 0..grid_size {
+						if state.cells.get(&ToroidalPoint(x, y)).is_none() && (neighbours(&state.cells, ToroidalPoint(x, y)).len() == 3) {
+							living.push(ToroidalPoint(x, y));
 						}
-						if state.cells.get(&(x, y)).is_some() {
-							let num_neighbours = neighbours(&state.cells, (x, y)).len();
+						if state.cells.get(&ToroidalPoint(x, y)).is_some() {
+							let num_neighbours = neighbours(&state.cells, ToroidalPoint(x, y)).len();
 							match num_neighbours {
-								0..=1 => dead.push((x, y)),
+								0..=1 => dead.push(ToroidalPoint(x, y)),
 								2..=3 => {},
-								_ => dead.push((x, y)),
+								_ => dead.push(ToroidalPoint(x, y)),
 							}
 						}
 					}
 				}
-
-				for point in living.into_iter() {
-					let _ = state.cells.insert(point);
-				}
-				for point in dead.into_iter() {
-					let _ = state.cells.remove(&point);
-				}
-
-				// console!(log, "TICK END");
 			}
+
+			let state = &mut STATE.update();
+			for point in living.into_iter() {
+				let _ = state.cells.insert(point);
+			}
+			for point in dead.into_iter() {
+				let _ = state.cells.remove(&point);
+			}
+
+			// console!(log, "TICK END");
 		}
 	});
 
