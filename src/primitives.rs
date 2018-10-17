@@ -54,7 +54,7 @@ macro_rules! __event_listeners {
 		match $handler {
 			$(
 				$crate::primitives::EventHandler::$name(f) => {
-					let _ = $element.add_event_listener(move |e: stdweb::web::event::$name| f(e));
+					$element.add_event_listener(move |e: stdweb::web::event::$name| f(e))
 				},
 			)+
 		}

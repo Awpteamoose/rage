@@ -23,6 +23,7 @@ pub struct Element {
 	pub children: Vec<Element>,
 	pub attributes: HashMap<String, String>,
 	pub event_handlers: Vec<EventHandler>,
+	pub listener_handles: Vec<stdweb::web::EventListenerHandle>,
 }
 
 impl PartialEq for Element {
@@ -65,6 +66,7 @@ impl Element {
 			children,
 			attributes,
 			event_handlers,
+			listener_handles: Vec::new(),
 		}
 	}
 
@@ -85,12 +87,20 @@ impl Element {
 			element.set_attribute(name, value).unwrap();
 		}
 
-		let event_handlers = std::mem::replace(&mut self.event_handlers, vec![]);
-		for handler in event_handlers {
-			__event_idents![__event_listeners, handler, element];
-		}
-
 		element.into()
+	}
+
+	pub fn attach_handlers(&mut self) {
+		let element = self.dom_reference.as_ref().unwrap();
+		let event_handlers = std::mem::replace(&mut self.event_handlers, vec![]);
+		std::mem::replace(&mut self.listener_handles, event_handlers.into_iter().map(|handler| __event_idents![__event_listeners, handler, element]).collect());
+	}
+
+	pub fn detach_handlers(&mut self) {
+		let listener_handles = std::mem::replace(&mut self.listener_handles, vec![]);
+		for handle in listener_handles {
+			handle.remove();
+		}
 	}
 
 	pub fn dom_node(&mut self) -> &DomNode {
@@ -118,8 +128,12 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 		(None, Some(new)) => {
 			// console!(log, "append on compare");
 			parent_dom.append_child(new.dom_node());
-			// console!(log, new.dom_node());
-			// console!(log, new.dom_node().parent_node());
+			new.attach_handlers();
+			if new.children.is_empty() { return; }
+			let new_parent = DomElement::try_from(new.dom_reference.as_ref().unwrap().clone()).unwrap();
+			for child in &mut new.children {
+				patch_tree(&new_parent, None, Some(child));
+			}
 		},
 		(Some(old), None) => {
 			// console!(log, "remove on compare");
@@ -129,6 +143,8 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 			if old == new {
 				// console!(log, "equal");
 				new.dom_reference = old.dom_reference.take();
+				old.detach_handlers();
+				new.attach_handlers();
 				let children_number = usize::max(old.children.len(), new.children.len());
 				if children_number == 0 { return; }
 				let new_parent = DomElement::try_from(new.dom_reference.as_ref().unwrap().clone()).unwrap();
@@ -141,11 +157,15 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 			if (old.tag != new.tag) || matches!(new.tag, Tag::text_node(_)) {
 				// console!(log, "simple replace", &parent_dom);
 				let _ = parent_dom.replace_child(new.dom_node(), old.dom_node()).unwrap();
+				old.detach_handlers();
+				new.attach_handlers();
 				return;
 				// console!(log, format!("{:?}", parent_dom.replace_child(new.dom_node(), old.dom_node())));
 			}
 
 			new.dom_reference = old.dom_reference.take();
+			old.detach_handlers();
+			new.attach_handlers();
 
 			if new.attributes != old.attributes {
 				// console!(log, "attributes");
