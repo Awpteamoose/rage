@@ -182,8 +182,8 @@ pub fn update<S: Default + 'static>(state_lock: &'static crate::cmp::StateLock<S
 
 	let old_node = &mut meta.vdom;
 	// console!(log, format!("{:?} <-> {:?}", old_node, new_node));
-	let body = DomElement::from(stdweb::web::document().body().unwrap());
-	patch_tree(&body, Some(old_node), Some(&mut new_node));
+	let element = document().get_element_by_id("__rage__").unwrap();
+	patch_tree(&element, Some(old_node), Some(&mut new_node));
 	meta.vdom = new_node;
 
 	meta.dirty = false;
@@ -194,8 +194,9 @@ pub fn update<S: Default + 'static>(state_lock: &'static crate::cmp::StateLock<S
 pub fn mount<S: Default + 'static, F: Fn() -> Element + 'static + Send + Sync>(rw_lock: &'static crate::StateLock<S>, mount: F) {
 	let mut meta = rw_lock.update_meta();
 	let dom_ref = meta.vdom.render();
+	dom_ref.set_attribute("id", "__rage__").unwrap();
 	meta.vdom.dom_reference = Some(dom_ref);
-	stdweb::web::document().body().unwrap().append_child(meta.vdom.dom_reference.as_ref().unwrap());
+	document().body().unwrap().append_child(meta.vdom.dom_reference.as_ref().unwrap());
 	let _ = std::mem::replace(&mut meta.mount, Box::new(mount));
-	stdweb::web::document().head().unwrap().append_child(&meta.style);
+	document().head().unwrap().append_child(&meta.style);
 }
