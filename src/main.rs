@@ -106,8 +106,8 @@ lazy_static::lazy_static! {
 	};
 }
 
-const GRID_SIZE: u32 = 150;
-const CELL_SIZE: u32 = 5;
+const GRID_SIZE: u32 = 75;
+const CELL_SIZE: u32 = 10;
 type Cell = (u32, u32);
 type Cells = HashSet<(u32, u32)>;
 
