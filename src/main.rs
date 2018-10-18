@@ -84,67 +84,98 @@ use stdweb::{
 		wait,
 	},
 	PromiseFuture,
+	traits::*,
+	unstable::TryFrom,
 };
+use std::ops::Add;
+use std::cell::RefCell;
 
-lazy_static::lazy_static! {
-	static ref STATE: StateLock<MyState> = StateLock::default();
-
-	static ref RNG: std::sync::Mutex<rand::rngs::SmallRng> = {
-		use rand::prelude::*;
-
-		let mut bytes: [u8; 16] = [0; 16];
-		let seed: [u8; 8] = unsafe { std::mem::transmute(stdweb::web::Date::new().get_time()) };
-		for (index, byte) in seed.iter().enumerate() {
-			bytes[index] = *byte;
-			bytes[index + 8] = *byte;
-		}
-		std::sync::Mutex::new(rand::rngs::SmallRng::from_seed(bytes))
-	};
+thread_local! {
+	pub static STATE: StateLock<MyState> = StateLock::default();
 }
 
-const GRID_SIZE: u32 = 75;
 const CELL_SIZE: u32 = 12;
-type Cell = (u32, u32);
-type Cells = HashSet<(u32, u32)>;
+type Cell = ToroidalPoint;
+type Cells = HashSet<ToroidalPoint>;
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+struct ToroidalPoint(u32, u32);
+
+#[allow(clippy::suspicious_arithmetic_impl)]
+impl Add<(i32, i32)> for ToroidalPoint {
+	type Output = Self;
+
+	fn add(self, other: (i32, i32)) -> Self {
+		STATE.view(|state| {
+			let grid_size = state.grid_size;
+
+			let x = if other.0 > 0 {
+				let x = self.0 + other.0 as u32;
+				if x >= grid_size { x - grid_size }
+				else { x }
+			} else {
+				let other_x = other.0.abs() as u32;
+				let x = self.0.checked_sub(other_x);
+				if let Some(x) = x { x } else { grid_size - other_x + self.0 }
+			};
+			let y = if other.1 > 0 {
+				let y = self.1 + other.1 as u32;
+				if y >= grid_size { y - grid_size }
+				else { y }
+			} else {
+				let other_y = other.1.abs() as u32;
+				let y = self.1.checked_sub(other_y);
+				if let Some(y) = y { y } else { grid_size - other_y + self.1 }
+			};
+
+			ToroidalPoint(x, y)
+		})
+	}
+}
 
 fn neighbours(cells: &Cells, point: Cell) -> Vec<Cell> {
-	let mut res = Vec::new();
-
-	// SW
-	if let (Some(x), Some(y)) = (point.0.checked_sub(1), point.1.checked_sub(1)) {
-		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
-	}
-	// W
-	if let (Some(x), y) = (point.0.checked_sub(1), point.1) {
-		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
-	}
-	// S
-	if let (x, Some(y)) = (point.0, point.1.checked_sub(1)) {
-		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
-	}
-	// SE
-	if let (x, Some(y)) = (point.0 + 1, point.1.checked_sub(1)) {
-		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
-	}
-	// NW
-	if let (Some(x), y) = (point.0.checked_sub(1), point.1 + 1) {
-		if cells.get(&(x, y)).is_some() { res.push((x, y)); }
-	}
-	// E
-	if cells.get(&(point.0 + 1, point.1)).is_some() { res.push((point.0, point.1)); }
-	// N
-	if cells.get(&(point.0, point.1 + 1)).is_some() { res.push((point.0, point.1)); }
-	// NE
-	if cells.get(&(point.0 + 1, point.1 + 1)).is_some() { res.push((point.0, point.1)); }
-
-	res
+	vec![
+		point + (-1, -1),
+		point + (-1, 0),
+		point + (-1, 1),
+		point + (0, -1),
+		point + (0, 1),
+		point + (1, -1),
+		point + (1, 0),
+		point + (1, 1),
+	]
+		.into_iter()
+		.filter(|x| cells.contains(&x))
+		.collect::<Vec<_>>()
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct MyState {
 	cells: Cells,
-	some_value: i32,
 	running: bool,
+	grid_size: u32,
+	rng: RefCell<rand::rngs::SmallRng>,
+}
+
+impl Default for MyState {
+	fn default() -> Self {
+		Self {
+			cells: Cells::default(),
+			running: false,
+			grid_size: 75,
+			rng: {
+				use rand::prelude::*;
+
+				let mut bytes: [u8; 16] = [0; 16];
+				let seed: [u8; 8] = unsafe { std::mem::transmute(stdweb::web::Date::new().get_time()) };
+				for (index, byte) in seed.iter().enumerate() {
+					bytes[index] = *byte;
+					bytes[index + 8] = *byte;
+				}
+				RefCell::new(rand::rngs::SmallRng::from_seed(bytes))
+			},
+		}
+	}
 }
 
 fn fetch(url: &str) -> PromiseFuture<String> {
@@ -188,52 +219,59 @@ async fn future_main() -> Result<(), Error> {
 }
 
 fn cells() -> Vec<Element> {
-	let mut divs = Vec::new();
+	STATE.lock(|lock| {
+		let mut divs = Vec::new();
+		let grid_size = lock.view().grid_size;
 
-	for x in 0..GRID_SIZE {
-		for y in 0..GRID_SIZE {
-			divs.push(primitives::div(
-				children![],
-				attrs![
-					"class" => styled(&STATE, &format!(r#"
-						border: 1px solid black;
-						background-color: {color};
-						box-sizing: content-box;
-					"#,
-						color = if STATE.view().cells.get(&(x, y)).is_some() { "black" } else { "white" }
-					)),
-				],
-				events![
-					move |_: event::ClickEvent| {
-						console!(log, "click start");
-						let state = &mut STATE.update();
+		for x in 0..grid_size {
+			for y in 0..grid_size {
+				divs.push(primitives::div(
+					children![],
+					attrs![
+						"class" => styled(&lock, &format!(r#"
+							border: 1px solid black;
+							background-color: {color};
+							box-sizing: content-box;
+						"#,
+							color = if lock.view().cells.get(&ToroidalPoint(x, y)).is_some() { "black" } else { "white" }
+						)),
+					],
+					events![
+						move |_: event::ClickEvent| {
+							STATE.update(|state| {
+								console!(log, "click start");
 
-						if state.cells.get(&(x, y)).is_some() { let _ = state.cells.remove(&(x, y)); }
-						else { let _ = state.cells.insert((x, y)); };
-						console!(log, "click end");
-					},
-				],
-			));
+								if state.cells.get(&ToroidalPoint(x, y)).is_some() { let _ = state.cells.remove(&ToroidalPoint(x, y)); }
+								else { let _ = state.cells.insert(ToroidalPoint(x, y)); };
+								console!(log, "click end");
+							});
+						},
+					],
+				));
+			}
 		}
-	}
 
-	divs
+		divs
+	})
 }
 
 fn start_button() -> Element {
-	primitives::input(
-		children![],
-		attrs![
-			"type" => "button",
-			"value" => if STATE.view().running { "stop" } else { "start" },
-		],
-		events![
-			move |_: event::ClickEvent| {
-				let state = &mut STATE.update();
-				state.running = !state.running;
-			},
-		],
-	)
+	STATE.view(|state| {
+		primitives::input(
+			children![],
+			attrs![
+				"type" => "button",
+				"value" => if state.running { "stop" } else { "start" },
+			],
+			events![
+				move |_: event::ClickEvent| {
+					STATE.update(|state| {
+						state.running = !state.running;
+					});
+				},
+			],
+		)
+	})
 }
 
 fn randomize_button() -> Element {
@@ -245,41 +283,91 @@ fn randomize_button() -> Element {
 		],
 		events![
 			move |_: event::ClickEvent| {
-				use rand::prelude::*;
+				STATE.update(|state| {
+					use rand::prelude::*;
 
-				let state = &mut STATE.update();
+					let grid_size = state.grid_size;
 
-				for x in 0..GRID_SIZE {
-					for y in 0..GRID_SIZE {
-						if RNG.lock().unwrap().next_u32() > (u32::max_value() / 2) {
-							let _ = state.cells.insert((x, y));
-						} else {
-							let _ = state.cells.remove(&(x, y));
+					for x in 0..grid_size {
+						for y in 0..grid_size {
+							if state.rng.borrow_mut().next_u32() > (u32::max_value() / 2) {
+								let _ = state.cells.insert(ToroidalPoint(x, y));
+							} else {
+								let _ = state.cells.remove(&ToroidalPoint(x, y));
+							}
 						}
 					}
-				}
+				})
 			},
 		],
 	)
 }
 
-fn container() -> Element {
-	primitives::div(
-		cells(),
+fn clear_button() -> Element {
+	primitives::input(
+		children![],
 		attrs![
-			"class" => styled(&STATE, &format!(r#"
-				user-select: none;
-				display: grid;
-				grid-template-columns: repeat({grid_size}, {cell_size}px);
-				grid-template-rows: repeat({grid_size}, {cell_size}px);
-			"#, grid_size = GRID_SIZE, cell_size = CELL_SIZE)),
+			"type" => "button",
+			"value" => "clear",
 		],
-		events![],
+		events![
+			move |_: event::ClickEvent| {
+				STATE.update(|state| {
+					state.cells.clear();
+				});
+			},
+		],
 	)
 }
 
+fn size() -> Element {
+	STATE.view(|state| {
+		primitives::div(
+			children![
+				"Grid size",
+				primitives::input(
+					children![],
+					attrs![
+						"type" => "range",
+						"min" => "10",
+						"max" => "100",
+						"style" => "width: 1000px",
+						"value" => state.grid_size.to_string(),
+					],
+					events![
+						move |e: event::InputEvent| {
+							STATE.update(|state| {
+								let value = stdweb::web::html_element::InputElement::try_from(e.current_target().unwrap()).unwrap().raw_value();
+								state.grid_size = value.parse().unwrap();
+							});
+						},
+					],
+				)
+			],
+			attrs![],
+			events![],
+		)
+	})
+}
+
+fn container() -> Element {
+	STATE.lock(|lock| {
+		primitives::div(
+			cells(),
+			attrs![
+				"class" => styled(&lock, &format!(r#"
+					user-select: none;
+					display: grid;
+					grid-template-columns: repeat({grid_size}, {cell_size}px);
+					grid-template-rows: repeat({grid_size}, {cell_size}px);
+				"#, grid_size = lock.view().grid_size, cell_size = CELL_SIZE)),
+			],
+			events![],
+		)
+	})
+}
+
 fn root() -> Element {
-	// console!(log, "ROOOOT");
 	primitives::div(
 		children![
 			"I have a big nose",
@@ -288,6 +376,8 @@ fn root() -> Element {
 			primitives::div(children!["that's a big nose"], attrs![], events![]),
 			start_button(),
 			randomize_button(),
+			clear_button(),
+			size(),
 			container(),
 		],
 		attrs![],
@@ -301,46 +391,42 @@ fn main() {
 
 	spawn_local(async move {
 		loop {
-			// await!(wait(250));
 			await!(wait(0));
-			if STATE.view_meta().dirty {
-				continue;
-			}
-			if !STATE.view().running { continue; }
+			STATE.lock(|lock| {
+				if lock.view_meta().dirty { return; }
+				if !lock.view().running { return; }
 
-			let state = &mut STATE.update();
+				let mut living = Vec::new();
+				let mut dead = Vec::new();
+				{
+					let state = &lock.view();
+					let grid_size = state.grid_size;
 
-			let mut living = Vec::new();
-			let mut dead = Vec::new();
-
-			if state.running {
-				// console!(log, "TICK");
-
-				for x in 0..GRID_SIZE {
-					for y in 0..GRID_SIZE {
-						if state.cells.get(&(x, y)).is_none() && (neighbours(&state.cells, (x, y)).len() == 3) {
-							living.push((x, y));
-						}
-						if state.cells.get(&(x, y)).is_some() {
-							let num_neighbours = neighbours(&state.cells, (x, y)).len();
-							match num_neighbours {
-								0..=1 => dead.push((x, y)),
-								2..=3 => {},
-								_ => dead.push((x, y)),
+					for x in 0..grid_size {
+						for y in 0..grid_size {
+							if state.cells.get(&ToroidalPoint(x, y)).is_none() && (neighbours(&state.cells, ToroidalPoint(x, y)).len() == 3) {
+								living.push(ToroidalPoint(x, y));
+							}
+							if state.cells.get(&ToroidalPoint(x, y)).is_some() {
+								let num_neighbours = neighbours(&state.cells, ToroidalPoint(x, y)).len();
+								match num_neighbours {
+									0..=1 => dead.push(ToroidalPoint(x, y)),
+									2..=3 => {},
+									_ => dead.push(ToroidalPoint(x, y)),
+								}
 							}
 						}
 					}
 				}
 
+				let state = &mut lock.update();
 				for point in living.into_iter() {
 					let _ = state.cells.insert(point);
 				}
 				for point in dead.into_iter() {
 					let _ = state.cells.remove(&point);
 				}
-
-				// console!(log, "TICK END");
-			}
+			});
 		}
 	});
 
