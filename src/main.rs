@@ -88,38 +88,10 @@ use stdweb::{
 	unstable::TryFrom,
 };
 use std::ops::Add;
+use std::cell::RefCell;
 
-// TODO: use this with simple RefCells
-// thread_local! {
-//     pub static STATE: StateLock<MyState> = StateLock::default();
-
-//     pub static RNG: std::sync::Mutex<rand::rngs::SmallRng> = {
-//         use rand::prelude::*;
-
-//         let mut bytes: [u8; 16] = [0; 16];
-//         let seed: [u8; 8] = unsafe { std::mem::transmute(stdweb::web::Date::new().get_time()) };
-//         for (index, byte) in seed.iter().enumerate() {
-//             bytes[index] = *byte;
-//             bytes[index + 8] = *byte;
-//         }
-//         std::sync::Mutex::new(rand::rngs::SmallRng::from_seed(bytes))
-//     };
-// }
-
-lazy_static::lazy_static! {
-	static ref STATE: StateLock<MyState> = StateLock::default();
-
-	static ref RNG: std::sync::Mutex<rand::rngs::SmallRng> = {
-		use rand::prelude::*;
-
-		let mut bytes: [u8; 16] = [0; 16];
-		let seed: [u8; 8] = unsafe { std::mem::transmute(stdweb::web::Date::new().get_time()) };
-		for (index, byte) in seed.iter().enumerate() {
-			bytes[index] = *byte;
-			bytes[index + 8] = *byte;
-		}
-		std::sync::Mutex::new(rand::rngs::SmallRng::from_seed(bytes))
-	};
+thread_local! {
+	pub static STATE: StateLock<MyState> = StateLock::default();
 }
 
 const CELL_SIZE: u32 = 12;
@@ -134,28 +106,30 @@ impl Add<(i32, i32)> for ToroidalPoint {
 	type Output = Self;
 
 	fn add(self, other: (i32, i32)) -> Self {
-		let grid_size = STATE.view().grid_size;
+		STATE.view(|state| {
+			let grid_size = state.grid_size;
 
-		let x = if other.0 > 0 {
-			let x = self.0 + other.0 as u32;
-			if x >= grid_size { x - grid_size }
-			else { x }
-		} else {
-			let other_x = other.0.abs() as u32;
-			let x = self.0.checked_sub(other_x);
-			if let Some(x) = x { x } else { grid_size - other_x + self.0 }
-		};
-		let y = if other.1 > 0 {
-			let y = self.1 + other.1 as u32;
-			if y >= grid_size { y - grid_size }
-			else { y }
-		} else {
-			let other_y = other.1.abs() as u32;
-			let y = self.1.checked_sub(other_y);
-			if let Some(y) = y { y } else { grid_size - other_y + self.1 }
-		};
+			let x = if other.0 > 0 {
+				let x = self.0 + other.0 as u32;
+				if x >= grid_size { x - grid_size }
+				else { x }
+			} else {
+				let other_x = other.0.abs() as u32;
+				let x = self.0.checked_sub(other_x);
+				if let Some(x) = x { x } else { grid_size - other_x + self.0 }
+			};
+			let y = if other.1 > 0 {
+				let y = self.1 + other.1 as u32;
+				if y >= grid_size { y - grid_size }
+				else { y }
+			} else {
+				let other_y = other.1.abs() as u32;
+				let y = self.1.checked_sub(other_y);
+				if let Some(y) = y { y } else { grid_size - other_y + self.1 }
+			};
 
-		ToroidalPoint(x, y)
+			ToroidalPoint(x, y)
+		})
 	}
 }
 
@@ -180,6 +154,7 @@ pub struct MyState {
 	cells: Cells,
 	running: bool,
 	grid_size: u32,
+	rng: RefCell<rand::rngs::SmallRng>,
 }
 
 impl Default for MyState {
@@ -188,6 +163,17 @@ impl Default for MyState {
 			cells: Cells::default(),
 			running: false,
 			grid_size: 75,
+			rng: {
+				use rand::prelude::*;
+
+				let mut bytes: [u8; 16] = [0; 16];
+				let seed: [u8; 8] = unsafe { std::mem::transmute(stdweb::web::Date::new().get_time()) };
+				for (index, byte) in seed.iter().enumerate() {
+					bytes[index] = *byte;
+					bytes[index + 8] = *byte;
+				}
+				RefCell::new(rand::rngs::SmallRng::from_seed(bytes))
+			},
 		}
 	}
 }
@@ -233,53 +219,59 @@ async fn future_main() -> Result<(), Error> {
 }
 
 fn cells() -> Vec<Element> {
-	let mut divs = Vec::new();
-	let grid_size = STATE.view().grid_size;
+	STATE.lock(|lock| {
+		let mut divs = Vec::new();
+		let grid_size = lock.view().grid_size;
 
-	for x in 0..grid_size {
-		for y in 0..grid_size {
-			divs.push(primitives::div(
-				children![],
-				attrs![
-					"class" => styled(&STATE, &format!(r#"
-						border: 1px solid black;
-						background-color: {color};
-						box-sizing: content-box;
-					"#,
-						color = if STATE.view().cells.get(&ToroidalPoint(x, y)).is_some() { "black" } else { "white" }
-					)),
-				],
-				events![
-					move |_: event::ClickEvent| {
-						console!(log, "click start");
-						let state = &mut STATE.update();
+		for x in 0..grid_size {
+			for y in 0..grid_size {
+				divs.push(primitives::div(
+					children![],
+					attrs![
+						"class" => styled(&lock, &format!(r#"
+							border: 1px solid black;
+							background-color: {color};
+							box-sizing: content-box;
+						"#,
+							color = if lock.view().cells.get(&ToroidalPoint(x, y)).is_some() { "black" } else { "white" }
+						)),
+					],
+					events![
+						move |_: event::ClickEvent| {
+							STATE.update(|state| {
+								console!(log, "click start");
 
-						if state.cells.get(&ToroidalPoint(x, y)).is_some() { let _ = state.cells.remove(&ToroidalPoint(x, y)); }
-						else { let _ = state.cells.insert(ToroidalPoint(x, y)); };
-						console!(log, "click end");
-					},
-				],
-			));
+								if state.cells.get(&ToroidalPoint(x, y)).is_some() { let _ = state.cells.remove(&ToroidalPoint(x, y)); }
+								else { let _ = state.cells.insert(ToroidalPoint(x, y)); };
+								console!(log, "click end");
+							});
+						},
+					],
+				));
+			}
 		}
-	}
 
-	divs
+		divs
+	})
 }
 
 fn start_button() -> Element {
-	primitives::input(
-		children![],
-		attrs![
-			"type" => "button",
-			"value" => if STATE.view().running { "stop" } else { "start" },
-		],
-		events![
-			move |_: event::ClickEvent| {
-				let state = &mut STATE.update();
-				state.running = !state.running;
-			},
-		],
-	)
+	STATE.view(|state| {
+		primitives::input(
+			children![],
+			attrs![
+				"type" => "button",
+				"value" => if state.running { "stop" } else { "start" },
+			],
+			events![
+				move |_: event::ClickEvent| {
+					STATE.update(|state| {
+						state.running = !state.running;
+					});
+				},
+			],
+		)
+	})
 }
 
 fn randomize_button() -> Element {
@@ -291,20 +283,21 @@ fn randomize_button() -> Element {
 		],
 		events![
 			move |_: event::ClickEvent| {
-				use rand::prelude::*;
+				STATE.update(|state| {
+					use rand::prelude::*;
 
-				let state = &mut STATE.update();
-				let grid_size = state.grid_size;
+					let grid_size = state.grid_size;
 
-				for x in 0..grid_size {
-					for y in 0..grid_size {
-						if RNG.lock().unwrap().next_u32() > (u32::max_value() / 2) {
-							let _ = state.cells.insert(ToroidalPoint(x, y));
-						} else {
-							let _ = state.cells.remove(&ToroidalPoint(x, y));
+					for x in 0..grid_size {
+						for y in 0..grid_size {
+							if state.rng.borrow_mut().next_u32() > (u32::max_value() / 2) {
+								let _ = state.cells.insert(ToroidalPoint(x, y));
+							} else {
+								let _ = state.cells.remove(&ToroidalPoint(x, y));
+							}
 						}
 					}
-				}
+				})
 			},
 		],
 	)
@@ -319,55 +312,62 @@ fn clear_button() -> Element {
 		],
 		events![
 			move |_: event::ClickEvent| {
-				STATE.update().cells.clear();
+				STATE.update(|state| {
+					state.cells.clear();
+				});
 			},
 		],
 	)
 }
 
 fn size() -> Element {
-	primitives::div(
-		children![
-			"Grid size",
-			primitives::input(
-				children![],
-				attrs![
-					"type" => "range",
-					"min" => "10",
-					"max" => "100",
-					"style" => "width: 1000px",
-					"value" => STATE.view().grid_size.to_string(),
-				],
-				events![
-					move |e: event::InputEvent| {
-						let value = stdweb::web::html_element::InputElement::try_from(e.current_target().unwrap()).unwrap().raw_value();
-						STATE.update().grid_size = value.parse().unwrap();
-					},
-				],
-			)
-		],
-		attrs![],
-		events![],
-	)
+	STATE.view(|state| {
+		primitives::div(
+			children![
+				"Grid size",
+				primitives::input(
+					children![],
+					attrs![
+						"type" => "range",
+						"min" => "10",
+						"max" => "100",
+						"style" => "width: 1000px",
+						"value" => state.grid_size.to_string(),
+					],
+					events![
+						move |e: event::InputEvent| {
+							STATE.update(|state| {
+								let value = stdweb::web::html_element::InputElement::try_from(e.current_target().unwrap()).unwrap().raw_value();
+								state.grid_size = value.parse().unwrap();
+							});
+						},
+					],
+				)
+			],
+			attrs![],
+			events![],
+		)
+	})
 }
 
 fn container() -> Element {
-	primitives::div(
-		cells(),
-		attrs![
-			"class" => styled(&STATE, &format!(r#"
-				user-select: none;
-				display: grid;
-				grid-template-columns: repeat({grid_size}, {cell_size}px);
-				grid-template-rows: repeat({grid_size}, {cell_size}px);
-			"#, grid_size = STATE.view().grid_size, cell_size = CELL_SIZE)),
-		],
-		events![],
-	)
+	STATE.lock(|lock| {
+		primitives::div(
+			cells(),
+			attrs![
+				"class" => styled(&lock, &format!(r#"
+					user-select: none;
+					display: grid;
+					grid-template-columns: repeat({grid_size}, {cell_size}px);
+					grid-template-rows: repeat({grid_size}, {cell_size}px);
+				"#, grid_size = lock.view().grid_size, cell_size = CELL_SIZE)),
+			],
+			events![],
+		)
+	})
 }
 
 fn root() -> Element {
-	// console!(log, "ROOOOT");
 	primitives::div(
 		children![
 			"I have a big nose",
@@ -391,46 +391,42 @@ fn main() {
 
 	spawn_local(async move {
 		loop {
-			// await!(wait(250));
 			await!(wait(0));
-			if STATE.view_meta().dirty {
-				continue;
-			}
-			if !STATE.view().running { continue; }
+			STATE.lock(|lock| {
+				if lock.view_meta().dirty { return; }
+				if !lock.view().running { return; }
 
-			let mut living = Vec::new();
-			let mut dead = Vec::new();
-			{
-				let state = &STATE.view();
-				let grid_size = state.grid_size;
+				let mut living = Vec::new();
+				let mut dead = Vec::new();
+				{
+					let state = &lock.view();
+					let grid_size = state.grid_size;
 
-				// console!(log, "TICK");
-				for x in 0..grid_size {
-					for y in 0..grid_size {
-						if state.cells.get(&ToroidalPoint(x, y)).is_none() && (neighbours(&state.cells, ToroidalPoint(x, y)).len() == 3) {
-							living.push(ToroidalPoint(x, y));
-						}
-						if state.cells.get(&ToroidalPoint(x, y)).is_some() {
-							let num_neighbours = neighbours(&state.cells, ToroidalPoint(x, y)).len();
-							match num_neighbours {
-								0..=1 => dead.push(ToroidalPoint(x, y)),
-								2..=3 => {},
-								_ => dead.push(ToroidalPoint(x, y)),
+					for x in 0..grid_size {
+						for y in 0..grid_size {
+							if state.cells.get(&ToroidalPoint(x, y)).is_none() && (neighbours(&state.cells, ToroidalPoint(x, y)).len() == 3) {
+								living.push(ToroidalPoint(x, y));
+							}
+							if state.cells.get(&ToroidalPoint(x, y)).is_some() {
+								let num_neighbours = neighbours(&state.cells, ToroidalPoint(x, y)).len();
+								match num_neighbours {
+									0..=1 => dead.push(ToroidalPoint(x, y)),
+									2..=3 => {},
+									_ => dead.push(ToroidalPoint(x, y)),
+								}
 							}
 						}
 					}
 				}
-			}
 
-			let state = &mut STATE.update();
-			for point in living.into_iter() {
-				let _ = state.cells.insert(point);
-			}
-			for point in dead.into_iter() {
-				let _ = state.cells.remove(&point);
-			}
-
-			// console!(log, "TICK END");
+				let state = &mut lock.update();
+				for point in living.into_iter() {
+					let _ = state.cells.insert(point);
+				}
+				for point in dead.into_iter() {
+					let _ = state.cells.remove(&point);
+				}
+			});
 		}
 	});
 
