@@ -89,6 +89,7 @@ use stdweb::{
 };
 use std::ops::Add;
 use std::cell::RefCell;
+use rand::prelude::*;
 
 thread_local! {
 	pub static STATE: StateLock<MyState> = StateLock::default();
@@ -154,7 +155,7 @@ pub struct MyState {
 	cells: Cells,
 	running: bool,
 	grid_size: u32,
-	rng: RefCell<rand::rngs::SmallRng>,
+	rng: RefCell<SmallRng>,
 }
 
 impl Default for MyState {
@@ -164,8 +165,6 @@ impl Default for MyState {
 			running: false,
 			grid_size: 75,
 			rng: {
-				use rand::prelude::*;
-
 				let mut bytes: [u8; 16] = [0; 16];
 				let seed: [u8; 8] = unsafe { std::mem::transmute(stdweb::web::Date::new().get_time()) };
 				for (index, byte) in seed.iter().enumerate() {
@@ -284,13 +283,11 @@ fn randomize_button() -> Element {
 		events![
 			move |_: event::ClickEvent| {
 				STATE.update(|state| {
-					use rand::prelude::*;
-
 					let grid_size = state.grid_size;
 
 					for x in 0..grid_size {
 						for y in 0..grid_size {
-							if state.rng.borrow_mut().next_u32() > (u32::max_value() / 2) {
+							if state.rng.borrow_mut().gen_bool(0.5) {
 								let _ = state.cells.insert(ToroidalPoint(x, y));
 							} else {
 								let _ = state.cells.remove(&ToroidalPoint(x, y));
