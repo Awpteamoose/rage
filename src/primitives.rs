@@ -102,30 +102,3 @@ __primitives!(
 	text,      textarea,        tfoot,          th,        thead,           time,     title,     tr,
 	track,     tspan,           u,              ul,        var,             video,    wbr,
 );
-
-macro_rules! children {
-	() => {
-		vec![]
-	};
-	($($e: expr),+$(,)*) => {
-		vec![$($e.into(),)+]
-	};
-}
-
-macro_rules! attrs {
-	() => {
-		hashmap![]
-	};
-	($($k: expr => $v: expr),+$(,)*) => {
-		hashmap![$($k.into() => $v.into(),)+]
-	};
-}
-
-macro_rules! events {
-	() => {
-		vec![]
-	};
-	($($e: expr),+$(,)*) => {
-		vec![$(<Box<dyn Fn(_)>>::into(Box::new($e)),)+]
-	};
-}

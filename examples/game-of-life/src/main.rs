@@ -52,44 +52,45 @@
 	clippy::print_stdout,
 	clippy::unimplemented,
 ))]
-#![feature(tool_lints)]
 #![recursion_limit = "128"]
 #![allow(unreachable_pub)]
 #![feature(try_from, try_trait, never_type)]
 #![feature(async_await, await_macro, futures_api, pin)]
 
-#[macro_use]
-mod primitives;
-mod cmp;
-mod styled;
-mod vdom;
+#[macro_use] extern crate rage;
 
-use self::{styled::styled, vdom::Element};
-use crate::cmp::*;
-use futures::{join, try_join};
 use maplit::*;
 use std::collections::HashSet;
-use stdweb::{
-	__internal_console_unsafe,
-	__js_raw_asm,
-	_js_impl,
-	console,
-	js,
-	spawn_local,
-	unstable::TryInto,
-	unwrap_future,
-	web::{
-		error::Error,
-		event,
-		wait,
-	},
-	PromiseFuture,
-	traits::*,
-	unstable::TryFrom,
-};
 use std::ops::Add;
 use std::cell::RefCell;
 use rand::prelude::*;
+use rage::{
+	stdweb::{
+		self,
+		__internal_console_unsafe,
+		__js_raw_asm,
+		_js_impl,
+		console,
+		js,
+		spawn_local,
+		unstable::TryInto,
+		unwrap_future,
+		web::{
+			error::Error,
+			event,
+			wait,
+		},
+		PromiseFuture,
+		traits::*,
+		unstable::TryFrom,
+	},
+	futures::{join, try_join},
+	cmp::*,
+	styled::styled,
+	vdom::Element,
+	primitives,
+	vdom,
+};
 
 thread_local! {
 	pub static STATE: StateLock<MyState> = StateLock::default();
