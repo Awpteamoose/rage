@@ -57,10 +57,13 @@
 #![feature(try_from, try_trait, never_type)]
 #![feature(async_await, await_macro, futures_api, pin)]
 
-#[macro_use] extern crate rage;
+#[macro_use]
+extern crate rage;
 
 use maplit::*;
 use rage::{
+	cmp::*,
+	primitives,
 	stdweb::{
 		__js_raw_asm,
 		_js_impl,
@@ -68,23 +71,13 @@ use rage::{
 		spawn_local,
 		unstable::TryInto,
 		unwrap_future,
-		web::{
-			error::Error,
-			wait,
-			TypedArray,
-		},
+		web::{error::Error, wait, TypedArray},
 		PromiseFuture,
 	},
-	cmp::*,
-	vdom::Element,
-	primitives,
-	vdom,
+	vdom::{self, Element},
 };
-use shared::{TestArg, Method, TestReply};
-use serde::{
-	Serialize,
-	de::DeserializeOwned,
-};
+use serde::{de::DeserializeOwned, Serialize};
+use shared::{Method, TestArg, TestReply};
 
 thread_local! {
 	pub static STATE: StateLock<MyState> = StateLock::default();
@@ -108,7 +101,9 @@ fn fetch<V: Serialize + DeserializeOwned>(method: &Method, arg: &V) -> PromiseFu
 		)
 			.then((r) => r.arrayBuffer())
 			.then((b) => new Uint8Array(b))
-	).try_into().unwrap()
+	)
+	.try_into()
+	.unwrap()
 }
 
 async fn method<Arg: Serialize + DeserializeOwned, Reply: DeserializeOwned>(method: Method, arg: Arg) -> Result<Reply, Error> {
@@ -121,7 +116,13 @@ async fn method<Arg: Serialize + DeserializeOwned, Reply: DeserializeOwned>(meth
 #[allow(clippy::useless_let_if_seq)]
 async fn future_main() -> Result<(), Error> {
 	await!(wait(2000));
-	let reply: TestReply = await!(method(Method::TestMethod, TestArg { prop1: 15, prop2: "gigg".to_owned() }))?;
+	let reply: TestReply = await!(method(
+		Method::TestMethod,
+		TestArg {
+			prop1: 15,
+			prop2: "gigg".to_owned()
+		}
+	))?;
 	STATE.update(|state| {
 		state.reply = Some(reply);
 	});
@@ -130,15 +131,7 @@ async fn future_main() -> Result<(), Error> {
 }
 
 fn root() -> Element {
-	STATE.view(|state|
-		primitives::div(
-			children![
-				format!("TestReply: {:?}", state.reply),
-			],
-			attrs![],
-			events![],
-		)
-	)
+	STATE.view(|state| primitives::div(children![format!("TestReply: {:?}", state.reply),], attrs![], events![]))
 }
 
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]

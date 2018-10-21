@@ -57,9 +57,9 @@
 #![feature(try_from, try_trait, never_type)]
 #![feature(async_await, await_macro, futures_api, pin)]
 
-use serde_derive::{Serialize, Deserialize};
-use strum_macros::AsStaticStr;
 use http::method::Method as HttpMethod;
+use serde_derive::{Deserialize, Serialize};
+use strum_macros::AsStaticStr;
 
 #[derive(Debug)]
 pub enum Method {
