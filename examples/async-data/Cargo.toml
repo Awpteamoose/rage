@@ -1,0 +1,14 @@
+[workspace]
+
+members = [
+    "client",
+    "server",
+]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+debug = true
+# lto = true
