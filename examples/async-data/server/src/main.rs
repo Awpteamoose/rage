@@ -62,7 +62,7 @@ use std::collections::HashSet;
 use actix_web::{
 	Query,
 	fs::{NamedFile, StaticFiles},
-	http::Method,
+	http::Method as HttpMethod,
 	multipart,
 	App,
 	HttpMessage,
@@ -78,6 +78,8 @@ use serde_derive::{Serialize, Deserialize};
 use futures::prelude::*;
 use futures::{Future, Stream, compat::*};
 use futures_01::Future as Future01;
+use strum::AsStaticRef;
+use shared::{TestArg, Method};
 
 #[derive(Deserialize)]
 struct Config {
@@ -90,8 +92,10 @@ lazy_static! {
 }
 
 async fn test_method(req: HttpRequest) -> Result<HttpResponse, ActixError> {
+	println!("req: {:#?}", req);
 	let body: bytes::Bytes = await!(Compat01As03::new(req.body())).unwrap();
-	println!("bytes: {:#?}", body);
+	let arg: TestArg = serde_cbor::from_slice(&body).unwrap();
+	println!("arg: {:#?}", &arg);
 	Ok("hello warudo".into())
 }
 
@@ -107,10 +111,17 @@ fn main() {
 		App::new()
 			.middleware(Logger::default())
 			.middleware(Logger::new("%a"))
-			// .route("/favicon.ico", Method::GET, |_: HttpRequest| NamedFile::open("public/favicon.ico"))
+			// .route("/favicon.ico", HttpMethod::GET, |_: HttpRequest| NamedFile::open("public/favicon.ico"))
 			// .handler("/public", StaticFiles::new("public/").expect("can't serve public/"))
-			.route("/api/test-method", Method::POST, |req: HttpRequest| -> Box<dyn Future01<Item = _, Error = _>> { Box::new(test_method(req).boxed().compat()) })
-			.handler("/", StaticFiles::new("target/deploy").expect("can't serve").index_file("index.html"))
+			.route(
+				Method::TestMethod.as_str(),
+				HttpMethod::POST,
+				|req: HttpRequest| -> Box<dyn Future01<Item = _, Error = _>> { Box::new(test_method(req).boxed().compat()) },
+			)
+			.handler("/",
+				StaticFiles::new("target/deploy").expect("can't serve")
+				.default_handler(|_: &HttpRequest| NamedFile::open("target/deploy/index.html"))
+			)
 		})
 		.bind(format!("{}:{}", CONFIG.address, CONFIG.port))
 		.expect("can't bind to addres")

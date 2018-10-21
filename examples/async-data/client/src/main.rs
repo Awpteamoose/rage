@@ -91,6 +91,9 @@ use rage::{
 	primitives,
 	vdom,
 };
+use strum_macros::AsStaticStr;
+use shared::{TestArg, Method};
+use serde::{Serialize, Deserialize};
 
 thread_local! {
 	pub static STATE: StateLock<MyState> = StateLock::default();
@@ -117,9 +120,9 @@ impl Default for MyState {
 	}
 }
 
-fn fetch(url: &str) -> PromiseFuture<String> {
+fn fetch<V: Serialize + Deserialize<'static>>(method: Method, arg: &V) -> PromiseFuture<String> {
 	#[allow(clippy::result_unwrap_used)]
-	js!(return fetch(@{url}).then((r)=>r.text());).try_into().unwrap()
+	js!(return fetch("http://localhost:8000" + @{method.as_str()}, { method: "POST", body: Uint8Array.from(@{serde_cbor::to_vec(arg).unwrap()}) }).then((r)=>r.text());).try_into().unwrap()
 }
 
 async fn print(message: &str) {
@@ -131,22 +134,22 @@ async fn print(message: &str) {
 #[allow(clippy::useless_let_if_seq)]
 async fn future_main() -> Result<(), Error> {
 	// Runs Futures synchronously
-	await!(print("Hello"));
-	await!(print("There"));
+	// await!(print("Hello"));
+	// await!(print("There"));
+
+	// {
+	//     let a = print("Test 1");
+	//     let b = print("Test 2");
+
+	//     // Runs multiple Futures in parallel
+	//     join!(a, b);
+
+	//     console!(log, "Done");
+	// }
 
 	{
-		let a = print("Test 1");
-		let b = print("Test 2");
-
-		// Runs multiple Futures in parallel
-		join!(a, b);
-
-		console!(log, "Done");
-	}
-
-	{
-		let a = fetch("https://logcraft.grdigital.co.uk/version");
-		let b = fetch("https://logcraft.grdigital.co.uk/version");
+		let a = fetch(Method::TestMethod, &TestArg { prop1: 15, prop2: "nigg".to_owned() });
+		let b = fetch(Method::TestMethod, &TestArg { prop1: 5, prop2: "bigg".to_owned() });
 
 		// Runs multiple Futures (which can error) in parallel
 		let (a, b) = try_join!(a, b)?;
@@ -172,7 +175,7 @@ fn root() -> Element {
 
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
 fn main() {
-	// spawn_local(unwrap_future(future_main()));
+	spawn_local(unwrap_future(future_main()));
 
 	vdom::mount(&STATE, root);
 }
