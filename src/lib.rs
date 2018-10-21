@@ -55,7 +55,6 @@
 #![recursion_limit = "128"]
 #![allow(unreachable_pub)]
 #![feature(try_from, try_trait, never_type)]
-#![feature(async_await, await_macro, futures_api, pin)]
 
 #[macro_export]
 macro_rules! children {
@@ -94,4 +93,3 @@ pub mod styled;
 pub mod vdom;
 
 pub use stdweb;
-pub use futures;

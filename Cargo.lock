@@ -52,19 +52,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "futures-preview"
-version = "0.3.0-alpha.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "futures-channel-preview 0.3.0-alpha.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures-core-preview 0.3.0-alpha.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures-executor-preview 0.3.0-alpha.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures-io-preview 0.3.0-alpha.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures-sink-preview 0.3.0-alpha.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures-util-preview 0.3.0-alpha.9 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "futures-sink-preview"
 version = "0.3.0-alpha.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -166,7 +153,6 @@ dependencies = [
 name = "rage"
 version = "0.0.1"
 dependencies = [
- "futures-preview 0.3.0-alpha.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "maplit 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "matches 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.80 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -336,7 +322,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum futures-core-preview 0.3.0-alpha.9 (registry+https://github.com/rust-lang/crates.io-index)" = "e5fea6d4920bf1745d87f8624abdd38ed03fb5b644767b84a0de882fe46c4153"
 "checksum futures-executor-preview 0.3.0-alpha.9 (registry+https://github.com/rust-lang/crates.io-index)" = "43d4bb2cc4c0cefc554b0cf12f7151e0a578cf1820a36453eff1d955dde762ff"
 "checksum futures-io-preview 0.3.0-alpha.9 (registry+https://github.com/rust-lang/crates.io-index)" = "91bd6aba63f52d532c0f4ca6e9960f80a1b4295c292362baf2cad6d739fa9123"
-"checksum futures-preview 0.3.0-alpha.9 (registry+https://github.com/rust-lang/crates.io-index)" = "fde02ea82d846abc2d0f0acf12646b55278f06f027b70977de0c771ba7140ad6"
 "checksum futures-sink-preview 0.3.0-alpha.9 (registry+https://github.com/rust-lang/crates.io-index)" = "cd7799480a224d80e9e915a6bf8bff27498e8210b831f5a513af09d5c1db2e36"
 "checksum futures-util-preview 0.3.0-alpha.9 (registry+https://github.com/rust-lang/crates.io-index)" = "b73a6f85964a8291914db0114ccb0045c994c58b2110c4cf4ac47f5d2176ec90"
 "checksum heck 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ea04fa3ead4e05e51a7c806fc07271fdbde4e246a6c6d1efd52e72230b771b82"

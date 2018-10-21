@@ -60,43 +60,29 @@
 #[macro_use] extern crate rage;
 
 use maplit::*;
-use std::collections::HashSet;
-use std::ops::Add;
-use std::cell::RefCell;
-use rand::prelude::*;
 use rage::{
 	stdweb::{
-		self,
-		__internal_console_unsafe,
 		__js_raw_asm,
 		_js_impl,
-		console,
 		js,
 		spawn_local,
 		unstable::TryInto,
 		unwrap_future,
 		web::{
 			error::Error,
-			event,
 			wait,
 			TypedArray,
-			ArrayBuffer,
 		},
 		PromiseFuture,
-		traits::*,
-		unstable::TryFrom,
 	},
-	futures::{join, try_join},
 	cmp::*,
-	styled::styled,
 	vdom::Element,
 	primitives,
 	vdom,
 };
-use strum_macros::AsStaticStr;
 use shared::{TestArg, Method, TestReply};
 use serde::{
-	Serialize, Deserialize,
+	Serialize,
 	de::DeserializeOwned,
 };
 
@@ -128,7 +114,7 @@ fn fetch<V: Serialize + DeserializeOwned>(method: &Method, arg: &V) -> PromiseFu
 async fn method<Arg: Serialize + DeserializeOwned, Reply: DeserializeOwned>(method: Method, arg: Arg) -> Result<Reply, Error> {
 	let res = await!(fetch(&method, &arg))?;
 	let vec: Vec<u8> = res.into();
-	let rep: Reply = serde_cbor::from_slice(&vec).unwrap();
+	let rep: Reply = serde_cbor::from_slice(&vec).expect("server replied with garbage");
 	Ok(rep)
 }
 

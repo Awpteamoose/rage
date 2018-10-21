@@ -55,7 +55,6 @@
 #![recursion_limit = "128"]
 #![allow(unreachable_pub)]
 #![feature(try_from, try_trait, never_type)]
-#![feature(async_await, await_macro, futures_api, pin)]
 
 #[macro_use] extern crate rage;
 
@@ -72,19 +71,10 @@ use rage::{
 		_js_impl,
 		console,
 		js,
-		spawn_local,
-		unstable::TryInto,
-		unwrap_future,
-		web::{
-			error::Error,
-			event,
-			wait,
-		},
-		PromiseFuture,
+		web::event,
 		traits::*,
 		unstable::TryFrom,
 	},
-	futures::{join, try_join},
 	cmp::*,
 	styled::styled,
 	vdom::Element,
@@ -278,6 +268,7 @@ fn clear_button() -> Element {
 	)
 }
 
+#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
 fn size() -> Element {
 	STATE.view(|state| {
 		primitives::div(
@@ -384,7 +375,6 @@ fn root() -> Element {
 	)
 }
 
-#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
 fn main() {
 	vdom::mount(&STATE, root);
 }

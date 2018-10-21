@@ -20,3 +20,4 @@ strum = "0.11.0"
 strum_macros = "0.11.0"
 rage = { path = "../../../" }
 shared = { path = "../shared" }
+futures-preview = { version = "0.3.0-alpha.9", features = ["compat"] }

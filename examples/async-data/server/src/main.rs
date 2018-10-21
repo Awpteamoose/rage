@@ -57,28 +57,19 @@
 #![feature(try_from, try_trait, never_type)]
 #![feature(async_await, await_macro, futures_api, pin)]
 
-use maplit::*;
-use std::collections::HashSet;
 use actix_web::{
-	Query,
 	fs::{NamedFile, StaticFiles},
-	http::Method as HttpMethod,
-	multipart,
 	App,
 	HttpMessage,
 	HttpRequest,
 	HttpResponse,
-	Json,
-	Responder,
-	client::ClientRequest,
 	Error as ActixError,
 };
 use lazy_static::lazy_static;
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::Deserialize;
 use futures::prelude::*;
-use futures::{Future, Stream, compat::*};
+use futures::compat::*;
 use futures_01::Future as Future01;
-use strum::AsStaticRef;
 use shared::{TestArg, Method, TestReply};
 
 #[derive(Deserialize)]
@@ -94,10 +85,10 @@ lazy_static! {
 async fn test_method(req: HttpRequest) -> Result<HttpResponse, ActixError> {
 	println!("req: {:#?}", req);
 	let body: bytes::Bytes = await!(Compat01As03::new(req.body())).unwrap();
-	let arg: TestArg = serde_cbor::from_slice(&body).unwrap();
+	let arg: TestArg = serde_cbor::from_slice(&body).expect("client sent garbage");
 	println!("arg: {:#?}", &arg);
 	let reply = TestReply { some: true, other: "boop".to_owned() };
-	let reply_vec: bytes::Bytes = serde_cbor::to_vec(&reply).unwrap().into();
+	let reply_vec: bytes::Bytes = serde_cbor::to_vec(&reply).expect("can't serialize").into();
 	Ok(reply_vec.into())
 }
 
