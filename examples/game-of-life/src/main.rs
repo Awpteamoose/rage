@@ -365,7 +365,50 @@ fn container() -> Element {
 	})
 }
 
+fn tick() {
+	STATE.lock(|lock| {
+		let mut living = Vec::new();
+		let mut dead = Vec::new();
+		{
+			let state = &lock.view();
+			let grid_size = state.grid_size;
+
+			for x in 0..grid_size {
+				for y in 0..grid_size {
+					if state.cells.get(&ToroidalPoint(x, y)).is_none() && (neighbours(&state.cells, ToroidalPoint(x, y)).len() == 3) {
+						living.push(ToroidalPoint(x, y));
+					}
+					if state.cells.get(&ToroidalPoint(x, y)).is_some() {
+						let num_neighbours = neighbours(&state.cells, ToroidalPoint(x, y)).len();
+						match num_neighbours {
+							0..=1 => dead.push(ToroidalPoint(x, y)),
+							2..=3 => {},
+							_ => dead.push(ToroidalPoint(x, y)),
+						}
+					}
+				}
+			}
+		}
+
+		console!(log, line!());
+		let state = &mut lock.update();
+		console!(log, line!());
+		for point in living.into_iter() {
+			let _ = state.cells.insert(point);
+		}
+		for point in dead.into_iter() {
+			let _ = state.cells.remove(&point);
+		}
+	});
+}
+
 fn root() -> Element {
+	STATE.view(|state| {
+		if state.running {
+			let _ = stdweb::web::window().request_animation_frame(|_| tick());
+		}
+	});
+
 	primitives::div(
 		children![
 			"I have a big nose",
@@ -386,47 +429,6 @@ fn root() -> Element {
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
 fn main() {
 	// spawn_local(unwrap_future(future_main()));
-
-	spawn_local(async move {
-		loop {
-			await!(wait(0));
-			STATE.lock(|lock| {
-				if lock.view_meta().dirty { return; }
-				if !lock.view().running { return; }
-
-				let mut living = Vec::new();
-				let mut dead = Vec::new();
-				{
-					let state = &lock.view();
-					let grid_size = state.grid_size;
-
-					for x in 0..grid_size {
-						for y in 0..grid_size {
-							if state.cells.get(&ToroidalPoint(x, y)).is_none() && (neighbours(&state.cells, ToroidalPoint(x, y)).len() == 3) {
-								living.push(ToroidalPoint(x, y));
-							}
-							if state.cells.get(&ToroidalPoint(x, y)).is_some() {
-								let num_neighbours = neighbours(&state.cells, ToroidalPoint(x, y)).len();
-								match num_neighbours {
-									0..=1 => dead.push(ToroidalPoint(x, y)),
-									2..=3 => {},
-									_ => dead.push(ToroidalPoint(x, y)),
-								}
-							}
-						}
-					}
-				}
-
-				let state = &mut lock.update();
-				for point in living.into_iter() {
-					let _ = state.cells.insert(point);
-				}
-				for point in dead.into_iter() {
-					let _ = state.cells.remove(&point);
-				}
-			});
-		}
-	});
 
 	vdom::mount(&STATE, root);
 }
