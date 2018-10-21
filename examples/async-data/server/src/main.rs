@@ -79,7 +79,7 @@ use futures::prelude::*;
 use futures::{Future, Stream, compat::*};
 use futures_01::Future as Future01;
 use strum::AsStaticRef;
-use shared::{TestArg, Method};
+use shared::{TestArg, Method, TestReply};
 
 #[derive(Deserialize)]
 struct Config {
@@ -96,7 +96,9 @@ async fn test_method(req: HttpRequest) -> Result<HttpResponse, ActixError> {
 	let body: bytes::Bytes = await!(Compat01As03::new(req.body())).unwrap();
 	let arg: TestArg = serde_cbor::from_slice(&body).unwrap();
 	println!("arg: {:#?}", &arg);
-	Ok("hello warudo".into())
+	let reply = TestReply { some: true, other: "boop".to_owned() };
+	let reply_vec: bytes::Bytes = serde_cbor::to_vec(&reply).unwrap().into();
+	Ok(reply_vec.into())
 }
 
 fn main() {

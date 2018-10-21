@@ -78,3 +78,9 @@ pub struct TestArg {
 	pub prop1: u32,
 	pub prop2: String,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TestReply {
+	pub some: bool,
+	pub other: String,
+}
