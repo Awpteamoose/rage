@@ -106,7 +106,7 @@ thread_local! {
 
 #[derive(Default, Debug)]
 pub struct MyState {
-	pub some_value: u32,
+	pub reply: Option<TestReply>,
 }
 
 fn fetch<V: Serialize + DeserializeOwned>(method: &Method, arg: &V) -> PromiseFuture<TypedArray<u8>> {
@@ -134,29 +134,24 @@ async fn method<Arg: Serialize + DeserializeOwned, Reply: DeserializeOwned>(meth
 
 #[allow(clippy::useless_let_if_seq)]
 async fn future_main() -> Result<(), Error> {
-	{
-		let a = method(Method::TestMethod, TestArg { prop1: 15, prop2: "gigg".to_owned() });
-		let b = method(Method::TestMethod, TestArg { prop1: 5, prop2: "bigg".to_owned() });
-
-		// Runs multiple Futures (which can error) in parallel
-		let (a, b): (TestReply, TestReply) = try_join!(a, b)?;
-
-		console!(log, format!("{:?}", &a));
-	}
+	await!(wait(2000));
+	let reply: TestReply = await!(method(Method::TestMethod, TestArg { prop1: 15, prop2: "gigg".to_owned() }))?;
+	STATE.update(|state| {
+		state.reply = Some(reply);
+	});
 
 	Ok(())
 }
 
 fn root() -> Element {
-	primitives::div(
-		children![
-			"I have a big nose",
-			primitives::div(children!["wow"], attrs![], events![]),
-			"I have a big nose",
-			primitives::div(children!["that's a big nose"], attrs![], events![]),
-		],
-		attrs![],
-		events![],
+	STATE.view(|state|
+		primitives::div(
+			children![
+				format!("TestReply: {:?}", state.reply),
+			],
+			attrs![],
+			events![],
+		)
 	)
 }
 

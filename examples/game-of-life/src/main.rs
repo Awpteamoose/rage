@@ -178,46 +178,6 @@ impl Default for MyState {
 	}
 }
 
-fn fetch(url: &str) -> PromiseFuture<String> {
-	#[allow(clippy::result_unwrap_used)]
-	js!(return fetch(@{url}).then((r)=>r.text());).try_into().unwrap()
-}
-
-async fn print(message: &str) {
-	// Waits for 2000 milliseconds
-	await!(wait(2000));
-	console!(log, message);
-}
-
-#[allow(clippy::useless_let_if_seq)]
-async fn future_main() -> Result<(), Error> {
-	// Runs Futures synchronously
-	await!(print("Hello"));
-	await!(print("There"));
-
-	{
-		let a = print("Test 1");
-		let b = print("Test 2");
-
-		// Runs multiple Futures in parallel
-		join!(a, b);
-
-		console!(log, "Done");
-	}
-
-	{
-		let a = fetch("https://logcraft.grdigital.co.uk/version");
-		let b = fetch("https://logcraft.grdigital.co.uk/version");
-
-		// Runs multiple Futures (which can error) in parallel
-		let (a, b) = try_join!(a, b)?;
-
-		console!(log, a, b);
-	}
-
-	Ok(())
-}
-
 fn cells() -> Vec<Element> {
 	STATE.lock(|lock| {
 		let mut divs = Vec::new();
@@ -426,7 +386,5 @@ fn root() -> Element {
 
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
 fn main() {
-	// spawn_local(unwrap_future(future_main()));
-
 	vdom::mount(&STATE, root);
 }
