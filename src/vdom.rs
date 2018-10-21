@@ -1,3 +1,8 @@
+use crate::{
+	cmp::{StateLock, StateLockKey, StateMeta},
+	primitives::{EventHandler, Tag},
+};
+use matches::matches;
 use std::collections::HashMap;
 use stdweb::{
 	__internal_console_unsafe,
@@ -10,11 +15,6 @@ use stdweb::{
 	web::{document, Element as DomElement, Node as DomNode},
 };
 use strum::AsStaticRef;
-use crate::{
-	primitives::{Tag, EventHandler},
-	cmp::{StateLock, StateMeta, StateLockKey},
-};
-use matches::matches;
 
 pub struct Element {
 	pub dom_reference: Option<DomNode>,
@@ -54,12 +54,7 @@ impl std::fmt::Debug for Element {
 }
 
 impl Element {
-	pub fn new(
-		tag: Tag,
-		children: Vec<Self>,
-		attributes: HashMap<String, String>,
-		event_handlers: Vec<EventHandler>,
-	) -> Self {
+	pub fn new(tag: Tag, children: Vec<Self>, attributes: HashMap<String, String>, event_handlers: Vec<EventHandler>) -> Self {
 		Self {
 			dom_reference: None,
 			tag,
@@ -92,7 +87,13 @@ impl Element {
 	pub fn attach_handlers(&mut self) {
 		let element = self.dom_reference.as_ref().unwrap();
 		let event_handlers = self.event_handlers.take().unwrap();
-		std::mem::replace(&mut self.listener_handles, event_handlers.into_iter().map(|handler| __event_idents![__event_listeners, handler, element]).collect());
+		std::mem::replace(
+			&mut self.listener_handles,
+			event_handlers
+				.into_iter()
+				.map(|handler| __event_idents![__event_listeners, handler, element])
+				.collect(),
+		);
 	}
 
 	pub fn detach_handlers(&mut self) {
@@ -183,7 +184,8 @@ pub fn update<S: Default>(state_lock_key: &'static impl StateLockKey<S>) {
 		let mut meta = state_lock.update_meta();
 
 		meta.style.set_text_content(
-			&meta.styles
+			&meta
+				.styles
 				.borrow()
 				.iter()
 				.fold(String::new(), |acc, (class, style)| acc + &format!(".{} {{ {} }}", class, style)),
@@ -202,7 +204,10 @@ pub fn update<S: Default>(state_lock_key: &'static impl StateLockKey<S>) {
 pub fn mount<S: Default, F: Fn() -> Element + 'static>(state_lock_key: &'static impl StateLockKey<S>, mount: F) {
 	state_lock_key.update_meta(|meta| {
 		let dom_node = meta.vdom.dom_node();
-		DomElement::try_from(dom_node.clone()).unwrap().set_attribute("id", "__rage__").unwrap();
+		DomElement::try_from(dom_node.clone())
+			.unwrap()
+			.set_attribute("id", "__rage__")
+			.unwrap();
 		document().body().unwrap().append_child(dom_node);
 		let _ = std::mem::replace(&mut meta.mount, Box::new(mount));
 		document().head().unwrap().append_child(&meta.style);

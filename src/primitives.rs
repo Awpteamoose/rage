@@ -1,7 +1,7 @@
+use crate::vdom::Element;
 use std::collections::HashMap;
 use stdweb::web::event;
 use strum_macros::AsStaticStr;
-use crate::vdom::Element;
 
 // TODO: I could skip the Event bit, but concat_idents! doesn't work properly ¯\_(ツ)_/¯
 macro_rules! __event_idents {

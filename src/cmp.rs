@@ -1,8 +1,8 @@
 use maplit::*;
 use std::{
+	cell::RefCell,
 	collections::HashMap,
 	ops::{Deref, DerefMut},
-	cell::RefCell,
 };
 use stdweb::web::{document, Element};
 
@@ -67,10 +67,9 @@ impl<S: Default> StateLockKey<S> for std::thread::LocalKey<StateLock<S>> {
 			f(&mut s.update())
 		})
 	}
+
 	fn view<R>(&'static self, f: impl FnOnce(&S) -> R) -> R {
-		self.with(move |s| {
-			f(&mut s.view())
-		})
+		self.with(move |s| f(&mut s.view()))
 	}
 
 	fn update_meta<R>(&'static self, f: impl FnOnce(&mut StateMeta) -> R) -> R {
@@ -81,10 +80,9 @@ impl<S: Default> StateLockKey<S> for std::thread::LocalKey<StateLock<S>> {
 			f(&mut s.update_meta())
 		})
 	}
+
 	fn view_meta<R>(&'static self, f: impl FnOnce(&StateMeta) -> R) -> R {
-		self.with(move |s| {
-			f(&mut s.view_meta())
-		})
+		self.with(move |s| f(&mut s.view_meta()))
 	}
 }
 
