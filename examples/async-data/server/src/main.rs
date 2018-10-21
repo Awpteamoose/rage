@@ -117,7 +117,7 @@ fn main() {
 			// .handler("/public", StaticFiles::new("public/").expect("can't serve public/"))
 			.route(
 				Method::TestMethod.as_str(),
-				HttpMethod::POST,
+				Method::TestMethod.method(),
 				|req: HttpRequest| -> Box<dyn Future01<Item = _, Error = _>> { Box::new(test_method(req).boxed().compat()) },
 			)
 			.handler("/",

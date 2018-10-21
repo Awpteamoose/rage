@@ -95,7 +95,10 @@ use rage::{
 };
 use strum_macros::AsStaticStr;
 use shared::{TestArg, Method, TestReply};
-use serde::{Serialize, Deserialize};
+use serde::{
+	Serialize, Deserialize,
+	de::DeserializeOwned,
+};
 
 thread_local! {
 	pub static STATE: StateLock<MyState> = StateLock::default();
@@ -106,13 +109,14 @@ pub struct MyState {
 	pub some_value: u32,
 }
 
-fn fetch<V: Serialize + Deserialize<'static>>(method: &Method, arg: &V) -> PromiseFuture<TypedArray<u8>> {
+fn fetch<V: Serialize + DeserializeOwned>(method: &Method, arg: &V) -> PromiseFuture<TypedArray<u8>> {
+	let http_method = method.method();
 	#[allow(clippy::result_unwrap_used)]
 	js!(
 		return fetch(
-			"http://localhost:8000" + @{method.as_str()},
+			@{method.as_str()},
 			{
-				method: "POST",
+				method: @{http_method.as_str()},
 				body: Uint8Array.from(@{serde_cbor::to_vec(arg).unwrap()}),
 			},
 		)
@@ -121,19 +125,23 @@ fn fetch<V: Serialize + Deserialize<'static>>(method: &Method, arg: &V) -> Promi
 	).try_into().unwrap()
 }
 
+async fn method<Arg: Serialize + DeserializeOwned, Reply: DeserializeOwned>(method: Method, arg: Arg) -> Result<Reply, Error> {
+	let res = await!(fetch(&method, &arg))?;
+	let vec: Vec<u8> = res.into();
+	let rep: Reply = serde_cbor::from_slice(&vec).unwrap();
+	Ok(rep)
+}
+
 #[allow(clippy::useless_let_if_seq)]
 async fn future_main() -> Result<(), Error> {
 	{
-		let a = fetch(&Method::TestMethod, &TestArg { prop1: 15, prop2: "gigg".to_owned() });
-		let b = fetch(&Method::TestMethod, &TestArg { prop1: 5, prop2: "bigg".to_owned() });
+		let a = method(Method::TestMethod, TestArg { prop1: 15, prop2: "gigg".to_owned() });
+		let b = method(Method::TestMethod, TestArg { prop1: 5, prop2: "bigg".to_owned() });
 
 		// Runs multiple Futures (which can error) in parallel
-		let (a, b) = try_join!(a, b)?;
+		let (a, b): (TestReply, TestReply) = try_join!(a, b)?;
 
-		let v1: Vec<u8> = a.into();
-		let reply1: TestReply = serde_cbor::from_slice(&v1).unwrap();
-
-		console!(log, format!("{:?}, {:?}", &reply1, b));
+		console!(log, format!("{:?}", &a));
 	}
 
 	Ok(())

@@ -59,6 +59,7 @@
 
 use serde_derive::{Serialize, Deserialize};
 use strum_macros::AsStaticStr;
+use http::method::Method as HttpMethod;
 
 #[derive(Debug)]
 pub enum Method {
@@ -69,6 +70,12 @@ impl Method {
 	pub fn as_str(&self) -> &'static str {
 		match self {
 			Method::TestMethod => "/api/test-method",
+		}
+	}
+
+	pub fn method(&self) -> HttpMethod {
+		match self {
+			Method::TestMethod => HttpMethod::POST,
 		}
 	}
 }
