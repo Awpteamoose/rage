@@ -390,9 +390,7 @@ fn tick() {
 			}
 		}
 
-		console!(log, line!());
 		let state = &mut lock.update();
-		console!(log, line!());
 		for point in living.into_iter() {
 			let _ = state.cells.insert(point);
 		}
