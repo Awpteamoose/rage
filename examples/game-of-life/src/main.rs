@@ -56,31 +56,19 @@
 #![allow(unreachable_pub)]
 #![feature(try_from, try_trait, never_type)]
 
-#[macro_use] extern crate rage;
+#[macro_use]
+extern crate rage;
 
 use maplit::*;
-use std::collections::HashSet;
-use std::ops::Add;
-use std::cell::RefCell;
-use rand::prelude::*;
 use rage::{
-	stdweb::{
-		self,
-		__internal_console_unsafe,
-		__js_raw_asm,
-		_js_impl,
-		console,
-		js,
-		web::event,
-		traits::*,
-		unstable::TryFrom,
-	},
 	cmp::*,
-	styled::styled,
-	vdom::Element,
 	primitives,
-	vdom,
+	stdweb::{self, __internal_console_unsafe, __js_raw_asm, _js_impl, console, js, traits::*, unstable::TryFrom, web::event},
+	styled::styled,
+	vdom::{self, Element},
 };
+use rand::prelude::*;
+use std::{cell::RefCell, collections::HashSet, ops::Add};
 
 thread_local! {
 	pub static STATE: StateLock<MyState> = StateLock::default();
