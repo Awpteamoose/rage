@@ -5,6 +5,8 @@ edition = "2018"
 description = "web shit for rust age, heavy wip"
 license = "CC0-1.0"
 authors = ["Awpteamoose <cargo@awpteamoose.my.to>"]
+repository = "https://github.com/Awpteamoose/rage"
+homepage = "https://awpteamoose.github.io/rage"
 
 [dependencies]
 matches = "0.1.8"
