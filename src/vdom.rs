@@ -3,7 +3,7 @@ use crate::{
 	primitives::{EventHandler, Tag},
 };
 use matches::matches;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use stdweb::{
 	__internal_console_unsafe,
 	__js_raw_asm,
@@ -180,8 +180,24 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 			let new_dom = DomElement::try_from(new.dom_reference.as_ref().unwrap().as_ref()).unwrap();
 
 			if new.attributes != old.attributes {
-				for (name, value) in new.attributes.iter() {
-					new_dom.set_attribute(name, value).unwrap();
+				let all_attributes: HashSet<_> = old.attributes.keys().chain(new.attributes.keys()).collect();
+				for name in all_attributes {
+					match new.attributes.get(name) {
+						// still in new
+						Some(new_value) => {
+							if let Some(old_value) = old.attributes.get(name) {
+								// changed
+								if old_value != new_value {
+									new_dom.set_attribute(name, new_value).unwrap();
+								}
+							} else {
+								// wasn't present
+								new_dom.set_attribute(name, new_value).unwrap();
+							}
+						},
+						// removed in new
+						None => new_dom.remove_attribute(name),
+					}
 				}
 			}
 
