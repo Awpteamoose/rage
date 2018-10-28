@@ -85,9 +85,13 @@ impl Element {
 	}
 
 	pub fn attach_handlers(&mut self) {
+		for child in &mut self.children {
+			child.attach_handlers();
+		}
+		// if already attached - just return
+		let event_handlers = if let Some(x) = self.event_handlers.take() { x } else { return; };
 		let element = self.dom_reference.as_ref().unwrap();
-		let event_handlers = self.event_handlers.take().unwrap();
-		std::mem::replace(
+		let _ = std::mem::replace(
 			&mut self.listener_handles,
 			event_handlers
 				.into_iter()
@@ -97,6 +101,10 @@ impl Element {
 	}
 
 	pub fn detach_handlers(&mut self) {
+		for child in &mut self.children {
+			child.detach_handlers();
+		}
+		if self.listener_handles.is_empty() { return; }
 		let listener_handles = std::mem::replace(&mut self.listener_handles, vec![]);
 		for handle in listener_handles {
 			handle.remove();
@@ -124,14 +132,21 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 	match (old, new) {
 		(None, Some(new)) => {
 			parent_dom.append_child(new.dom_node());
-			new.attach_handlers();
-			if new.children.is_empty() { return; }
-			let new_parent = DomElement::try_from(new.dom_reference.as_ref().unwrap().clone()).unwrap();
+
+			if new.children.is_empty() {
+				new.attach_handlers();
+				return;
+			}
+
+			let new_parent = DomElement::try_from(new.dom_reference.as_ref().unwrap().as_ref()).unwrap();
 			for child in &mut new.children {
 				patch_tree(&new_parent, None, Some(child));
 			}
+
+			new.attach_handlers();
 		},
 		(Some(old), None) => {
+			old.detach_handlers();
 			let _ = parent_dom.remove_child(old.dom_node()).unwrap();
 		},
 		(Some(old), Some(new)) => {
@@ -139,13 +154,18 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 
 			if old == new {
 				new.dom_reference = old.dom_reference.take();
-				new.attach_handlers();
 				let children_number = new.children.len();
-				if children_number == 0 { return; }
-				let new_parent = DomElement::try_from(new.dom_reference.as_ref().unwrap().clone()).unwrap();
+				if children_number == 0 {
+					new.attach_handlers();
+					return;
+				}
+
+				let new_parent = DomElement::try_from(new.dom_reference.as_ref().unwrap().as_ref()).unwrap();
 				for id in 0..children_number {
 					patch_tree(&new_parent, old.children.get_mut(id), new.children.get_mut(id));
 				}
+
+				new.attach_handlers();
 				return;
 			}
 
@@ -156,9 +176,8 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 			}
 
 			new.dom_reference = old.dom_reference.take();
-			new.attach_handlers();
 
-			let new_dom = DomElement::try_from(new.dom_reference.as_ref().unwrap().clone()).unwrap();
+			let new_dom = DomElement::try_from(new.dom_reference.as_ref().unwrap().as_ref()).unwrap();
 
 			if new.attributes != old.attributes {
 				for (name, value) in new.attributes.iter() {
@@ -169,6 +188,8 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 			for id in 0..usize::max(old.children.len(), new.children.len()) {
 				patch_tree(&new_dom, old.children.get_mut(id), new.children.get_mut(id));
 			}
+
+			new.attach_handlers();
 		},
 		_ => {},
 	}
@@ -204,10 +225,10 @@ pub fn update<S: Default>(state_lock_key: &'static impl StateLockKey<S>) {
 pub fn mount<S: Default, F: Fn() -> Element + 'static>(state_lock_key: &'static impl StateLockKey<S>, mount: F) {
 	state_lock_key.update_meta(|meta| {
 		let dom_node = meta.vdom.dom_node();
-		DomElement::try_from(dom_node.clone())
-			.unwrap()
+		DomElement::try_from(dom_node.as_ref())
+			.expect("bad node")
 			.set_attribute("id", "__rage__")
-			.unwrap();
+			.expect("can't set attribute");
 		document().body().unwrap().append_child(dom_node);
 		let _ = std::mem::replace(&mut meta.mount, Box::new(mount));
 		document().head().unwrap().append_child(&meta.style);
