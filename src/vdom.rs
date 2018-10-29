@@ -169,7 +169,7 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 				return;
 			}
 
-			if (old.tag != new.tag) || matches!(new.tag, Tag::text_node(_)) {
+			if (old.tag != new.tag) || matches!(new.tag, Tag::text_node(_) | Tag::input) {
 				let _ = parent_dom.replace_child(new.dom_node(), old.dom_node()).unwrap();
 				new.attach_handlers();
 				return;
