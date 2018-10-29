@@ -126,6 +126,26 @@ impl<S: Into<String>> From<S> for Element {
 	}
 }
 
+fn fix_inputs(node: &DomNode, elem: &Element) {
+	// inputs are retarded
+	if matches!(elem.tag, Tag::input) {
+		if let Some(input_type) = elem.attributes.get("type") {
+			match input_type as &str {
+				"checkbox" | "radio" => {
+					let checked = elem.attributes.get("checked").is_some();
+					js!(@{node}.checked = @{checked});
+				},
+				"text" => {
+					if let Some(value) = elem.attributes.get("value") {
+						js!(@{node}.value = @{value});
+					}
+				},
+				_ => {},
+			}
+		}
+	}
+}
+
 // TODO: review, rewrite, avoid unwraps, avoid clones, avoid retardation
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
 pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Option<&mut Element>) {
@@ -135,6 +155,7 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 
 			if new.children.is_empty() {
 				new.attach_handlers();
+				fix_inputs(&new.dom_reference.as_ref().unwrap(), &new);
 				return;
 			}
 
@@ -157,6 +178,7 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 				let children_number = new.children.len();
 				if children_number == 0 {
 					new.attach_handlers();
+					fix_inputs(&new.dom_reference.as_ref().unwrap(), &new);
 					return;
 				}
 
@@ -166,12 +188,14 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 				}
 
 				new.attach_handlers();
+				fix_inputs(&new.dom_reference.as_ref().unwrap(), &new);
 				return;
 			}
 
-			if (old.tag != new.tag) || matches!(new.tag, Tag::text_node(_) | Tag::input) {
+			if (old.tag != new.tag) || matches!(new.tag, Tag::text_node(_)) {
 				let _ = parent_dom.replace_child(new.dom_node(), old.dom_node()).unwrap();
 				new.attach_handlers();
+				fix_inputs(&new.dom_reference.as_ref().unwrap(), &new);
 				return;
 			}
 
@@ -206,6 +230,7 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 			}
 
 			new.attach_handlers();
+			fix_inputs(&new.dom_reference.as_ref().unwrap(), &new);
 		},
 		_ => {},
 	}
