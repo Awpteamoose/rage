@@ -127,22 +127,37 @@ impl<S: Into<String>> From<S> for Element {
 }
 
 fn fix_inputs(node: &DomNode, elem: &Element) {
-	// inputs are retarded
-	if matches!(elem.tag, Tag::input) {
-		if let Some(input_type) = elem.attributes.get("type") {
-			match input_type as &str {
-				"checkbox" | "radio" => {
-					let checked = elem.attributes.get("checked").is_some();
-					js!(@{node}.checked = @{checked});
-				},
-				"text" => {
-					if let Some(value) = elem.attributes.get("value") {
-						js!(@{node}.value = @{value});
-					}
-				},
-				_ => {},
-			}
+	for child in &elem.children {
+		if let Some(node) = &child.dom_reference {
+			fix_inputs(node, child);
 		}
+	}
+
+	// inputs are retarded
+	match elem.tag {
+		Tag::input => {
+			if let Some(input_type) = elem.attributes.get("type") {
+				match input_type as &str {
+					"checkbox" | "radio" => {
+						let checked = elem.attributes.get("checked").is_some();
+						js!(@{node}.checked = @{checked});
+					},
+					"text" => {
+						if let Some(value) = elem.attributes.get("value") {
+							js!(@{node}.value = @{value});
+						}
+					},
+					_ => {},
+				}
+			}
+		},
+		| Tag::select
+		| Tag::textarea => {
+			if let Some(value) = elem.attributes.get("value") {
+				js!(@{node}.value = @{value});
+			}
+		},
+		_ => {},
 	}
 }
 
@@ -165,6 +180,7 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 			}
 
 			new.attach_handlers();
+			fix_inputs(&new.dom_reference.as_ref().unwrap(), &new);
 		},
 		(Some(old), None) => {
 			old.detach_handlers();
