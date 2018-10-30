@@ -1,4 +1,4 @@
-use crate::cmp::StateLock;
+use crate::cmp::StateLockKey;
 use std::{collections::hash_map::DefaultHasher, hash::Hasher};
 fn hash(s: &str) -> String {
 	let mut hasher = DefaultHasher::new();
@@ -6,10 +6,10 @@ fn hash(s: &str) -> String {
 	hasher.finish().to_string()
 }
 
-pub fn styled(lock: &StateLock<impl Default>, css: &str) -> String {
+pub fn styled<S: Default>(lock: &'static impl StateLockKey<S>, css: &str) -> String {
 	let class_hash = hash(&css);
 	let class = format!("styled{}", &class_hash);
-	let _ = lock.view_meta().styles.borrow_mut().insert(class.clone(), css.to_owned());
+	let _ = lock.view_meta(|m| m.styles.borrow_mut().insert(class.clone(), css.to_owned()));
 
 	class
 }
