@@ -37,11 +37,12 @@ fn insert_new_rules(_: f64) {
 		let mut state = s.borrow_mut();
 		let new_rules = std::mem::replace(&mut state.new_rules, HashMap::new());
 		let new_css = new_rules.into_iter().fold(String::new(), |acc, (class, css)| {
-			let style = format!(".{} {{ {} }}", &class, css);
+			let style = format!(".{} {{ {} }}\n", &class, css);
 			let _ = state.inserted_rules.insert(class);
 			acc + &style
 		});
 		state.style_element.append_html(&new_css).unwrap();
+		state.dirty = false;
 	});
 }
 

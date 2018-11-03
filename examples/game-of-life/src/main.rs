@@ -64,14 +64,15 @@ use rage::{
 	cmp::*,
 	primitives,
 	stdweb::{self, __internal_console_unsafe, __js_raw_asm, _js_impl, console, js, traits::*, unstable::TryFrom, web::event},
-	styled::styled,
+	styled,
 	vdom::{self, Element},
+	Tracked,
 };
 use rand::prelude::*;
 use std::{cell::RefCell, collections::HashSet, ops::Add};
 
 thread_local! {
-	pub static STATE: StateLock<MyState> = StateLock::default();
+	pub static STATE: Tracked<State> = Tracked::new(State::default());
 }
 
 const CELL_SIZE: u32 = 12;
@@ -86,7 +87,8 @@ impl Add<(i32, i32)> for ToroidalPoint {
 	type Output = Self;
 
 	fn add(self, other: (i32, i32)) -> Self {
-		STATE.view(|state| {
+		STATE.with(|s| {
+			let state = s.view();
 			let grid_size = state.grid_size;
 
 			let x = if other.0 > 0 {
@@ -130,14 +132,14 @@ fn neighbours(cells: &Cells, point: Cell) -> Vec<Cell> {
 }
 
 #[derive(Debug)]
-pub struct MyState {
+pub struct State {
 	cells: Cells,
 	running: bool,
 	grid_size: u32,
 	rng: RefCell<SmallRng>,
 }
 
-impl Default for MyState {
+impl Default for State {
 	fn default() -> Self {
 		Self {
 			cells: Cells::default(),
@@ -156,63 +158,57 @@ impl Default for MyState {
 	}
 }
 
-fn cells() -> Vec<Element> {
-	STATE.lock(|lock| {
-		let mut divs = Vec::new();
-		let grid_size = lock.view().grid_size;
+fn cells(state: &Tracked<State>) -> Vec<Element> {
+	let mut divs = Vec::new();
+	let grid_size = state.view().grid_size;
 
-		for x in 0..grid_size {
-			for y in 0..grid_size {
-				divs.push(primitives::div(
-					children![],
-					attrs![
-						"class" => styled(&lock, &format!(r#"
-							border: 1px solid black;
-							background-color: {color};
-							box-sizing: content-box;
-						"#,
-							color = if lock.view().cells.get(&ToroidalPoint(x, y)).is_some() { "black" } else { "white" }
-						)),
-					],
-					events![
-						move |_: event::ClickEvent| {
-							STATE.update(|state| {
-								console!(log, "click start");
+	for x in 0..grid_size {
+		for y in 0..grid_size {
+			divs.push(primitives::div(
+				children![],
+				attrs![
+					"class" => styled(&format!(r#"
+						border: 1px solid black;
+						background-color: {color};
+						box-sizing: content-box;
+					"#,
+						color = if state.view().cells.get(&ToroidalPoint(x, y)).is_some() { "black" } else { "white" }
+					)),
+				],
+				events![
+					enclose!{(state) move |_: event::ClickEvent| {
+						let mut state = state.update();
+						console!(log, "click start");
 
-								if state.cells.get(&ToroidalPoint(x, y)).is_some() { let _ = state.cells.remove(&ToroidalPoint(x, y)); }
-								else { let _ = state.cells.insert(ToroidalPoint(x, y)); };
-								console!(log, "click end");
-							});
-						},
-					],
-				));
-			}
+						if state.cells.get(&ToroidalPoint(x, y)).is_some() { let _ = state.cells.remove(&ToroidalPoint(x, y)); }
+						else { let _ = state.cells.insert(ToroidalPoint(x, y)); };
+						console!(log, "click end");
+					}},
+				],
+			));
 		}
+	}
 
-		divs
-	})
+	divs
 }
 
-fn start_button() -> Element {
-	STATE.view(|state| {
-		primitives::input(
-			children![],
-			attrs![
-				"type" => "button",
-				"value" => if state.running { "stop" } else { "start" },
-			],
-			events![
-				move |_: event::ClickEvent| {
-					STATE.update(|state| {
-						state.running = !state.running;
-					});
-				},
-			],
-		)
-	})
+fn start_button(state: &Tracked<State>) -> Element {
+	primitives::input(
+		children![],
+		attrs![
+			"type" => "button",
+			"value" => if state.view().running { "stop" } else { "start" },
+		],
+		events![
+			enclose!{(state) move |_: event::ClickEvent| {
+				let mut state = state.update();
+				state.running = !state.running;
+			}},
+		],
+	)
 }
 
-fn randomize_button() -> Element {
+fn randomize_button(state: &Tracked<State>) -> Element {
 	primitives::input(
 		children![],
 		attrs![
@@ -220,26 +216,25 @@ fn randomize_button() -> Element {
 			"value" => "randomize",
 		],
 		events![
-			move |_: event::ClickEvent| {
-				STATE.update(|state| {
-					let grid_size = state.grid_size;
+			enclose!{(state) move |_: event::ClickEvent| {
+				let mut state = state.update();
+				let grid_size = state.grid_size;
 
-					for x in 0..grid_size {
-						for y in 0..grid_size {
-							if state.rng.borrow_mut().gen_bool(0.5) {
-								let _ = state.cells.insert(ToroidalPoint(x, y));
-							} else {
-								let _ = state.cells.remove(&ToroidalPoint(x, y));
-							}
+				for x in 0..grid_size {
+					for y in 0..grid_size {
+						if state.rng.borrow_mut().gen_bool(0.5) {
+							let _ = state.cells.insert(ToroidalPoint(x, y));
+						} else {
+							let _ = state.cells.remove(&ToroidalPoint(x, y));
 						}
 					}
-				})
-			},
+				}
+			}},
 		],
 	)
 }
 
-fn clear_button() -> Element {
+fn clear_button(state: &Tracked<State>) -> Element {
 	primitives::input(
 		children![],
 		attrs![
@@ -247,65 +242,60 @@ fn clear_button() -> Element {
 			"value" => "clear",
 		],
 		events![
-			move |_: event::ClickEvent| {
-				STATE.update(|state| {
-					state.cells.clear();
-				});
-			},
+			enclose!{(state) move |_: event::ClickEvent| {
+				state.update().cells.clear();
+			}},
 		],
 	)
 }
 
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
-fn size() -> Element {
-	STATE.view(|state| {
-		primitives::div(
-			children![
-				"Grid size",
-				primitives::input(
-					children![],
-					attrs![
-						"type" => "range",
-						"min" => "10",
-						"max" => "100",
-						"style" => "width: 1000px",
-						"value" => state.grid_size.to_string(),
-					],
-					events![
-						move |e: event::InputEvent| {
-							STATE.update(|state| {
-								let value = stdweb::web::html_element::InputElement::try_from(e.current_target().unwrap()).unwrap().raw_value();
-								state.grid_size = value.parse().unwrap();
-							});
-						},
-					],
-				)
-			],
-			attrs![],
-			events![],
-		)
-	})
+fn size(state: &Tracked<State>) -> Element {
+	primitives::div(
+		children![
+			"Grid size",
+			primitives::input(
+				children![],
+				attrs![
+					"type" => "range",
+					"min" => "10",
+					"max" => "100",
+					"style" => "width: 1000px",
+					"value" => state.view().grid_size.to_string(),
+				],
+				events![
+					enclose!{(state) move |e: event::InputEvent| {
+						let mut state = state.update();
+						let value = stdweb::web::html_element::InputElement::try_from(e.current_target().unwrap()).unwrap().raw_value();
+						state.grid_size = value.parse().unwrap();
+					}},
+				],
+			)
+		],
+		attrs![],
+		events![],
+	)
 }
 
-fn container() -> Element {
-	STATE.lock(|lock| {
-		primitives::div(
-			cells(),
-			attrs![
-				"class" => styled(&lock, &format!(r#"
-					user-select: none;
-					display: grid;
-					grid-template-columns: repeat({grid_size}, {cell_size}px);
-					grid-template-rows: repeat({grid_size}, {cell_size}px);
-				"#, grid_size = lock.view().grid_size, cell_size = CELL_SIZE)),
-			],
-			events![],
-		)
-	})
+fn container(state: &Tracked<State>) -> Element {
+	primitives::div(
+		cells(state),
+		attrs![
+			"class" => styled(r#"
+				user-select: none;
+				display: grid;
+			"#),
+			"style" => format!(r#"
+				grid-template-columns: repeat({grid_size}, {cell_size}px);
+				grid-template-rows: repeat({grid_size}, {cell_size}px);
+			"#, grid_size = state.view().grid_size, cell_size = CELL_SIZE),
+		],
+		events![],
+	)
 }
 
-fn tick() {
-	STATE.lock(|lock| {
+fn tick(_: f64) {
+	STATE.with(|lock| {
 		let mut living = Vec::new();
 		let mut dead = Vec::new();
 		{
@@ -340,29 +330,65 @@ fn tick() {
 }
 
 fn root() -> Element {
-	STATE.view(|state| {
-		if state.running {
-			let _ = stdweb::web::window().request_animation_frame(|_| tick());
+	STATE.with(|state| {
+		if state.view().running {
+			let _ = stdweb::web::window().request_animation_frame(tick);
 		}
-	});
 
-	primitives::div(
-		children![
-			"I have a big nose",
-			primitives::div(children!["wow"], attrs![], events![]),
-			"I have a big nose",
-			primitives::div(children!["that's a big nose"], attrs![], events![]),
-			start_button(),
-			randomize_button(),
-			clear_button(),
-			size(),
-			container(),
-		],
-		attrs![],
-		events![],
-	)
+		primitives::div(
+			children![
+				"I have a big nose",
+				primitives::div(children!["wow"], attrs![], events![]),
+				"I have a big nose",
+				primitives::div(children!["that's a big nose"], attrs![], events![]),
+				start_button(state),
+				randomize_button(state),
+				clear_button(state),
+				size(state),
+				container(state),
+			],
+			attrs![],
+			events![],
+		)
+	})
+}
+
+#[macro_export]
+macro_rules! println {
+	($($arg: tt),+$(,)*) => {
+		use rage::stdweb::{
+			__internal_console_unsafe,
+			__js_raw_asm,
+			_js_impl,
+			console,
+			js,
+		};
+
+		console!(log, format!($($arg,)+));
+	};
+}
+
+#[macro_export]
+macro_rules! eprintln {
+	($($arg: tt),+$(,)*) => {
+		use rage::stdweb::{
+			__internal_console_unsafe,
+			__js_raw_asm,
+			_js_impl,
+			console,
+			js,
+		};
+
+		console!(error, format!($($arg,)+));
+	};
 }
 
 fn main() {
-	vdom::mount(&STATE, root);
+	std::panic::set_hook(Box::new(|i| {
+		// TODO: in release
+		// js!(document.location.reload());
+		eprintln!("{}", i);
+	}));
+	rage::stdweb::web::document().set_title("Game of Life");
+	vdom::mount(root);
 }

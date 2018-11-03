@@ -209,7 +209,9 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 			}
 
 			if (old.tag != new.tag) || matches!(new.tag, Tag::text_node(_)) {
-				let _ = parent_dom.replace_child(new.dom_node(), old.dom_node()).unwrap();
+				let new_dom_node = new.dom_node();
+				let old_dom_node = old.dom_node();
+				let _ = parent_dom.replace_child(new_dom_node, old_dom_node).unwrap();
 				new.attach_handlers();
 				fix_inputs(&new.dom_reference.as_ref().unwrap(), &new);
 				return;
@@ -280,5 +282,8 @@ pub fn mount<F: Fn() -> Element + 'static>(mount: F) {
 			.expect("can't set attribute");
 		document().body().unwrap().append_child(dom_node);
 		let _ = std::mem::replace(&mut meta.render, Box::new(mount));
-	})
+	});
+	// document
+	update(0.);
+	// let _ = stdweb::web::window().request_animation_frame(update);
 }
