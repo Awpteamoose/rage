@@ -212,6 +212,9 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 		(Some(old), Some(new)) => {
 			if old == new {
 				new.dom_reference = old.dom_reference.take();
+				if new.callback_id != old.callback_id {
+					js!(@{&new.dom_reference}.__rage_event_callback = @{new.callback_id});
+				}
 				let children_number = new.children.len();
 				if children_number == 0 {
 					new.attach_handlers();
@@ -239,6 +242,9 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 			}
 
 			new.dom_reference = old.dom_reference.take();
+			if new.callback_id != old.callback_id {
+				js!(@{&new.dom_reference}.__rage_event_callback = @{new.callback_id});
+			}
 
 			let new_dom = DomElement::try_from(new.dom_reference.as_ref().unwrap().as_ref()).unwrap();
 
