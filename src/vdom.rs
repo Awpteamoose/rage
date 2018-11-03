@@ -1,5 +1,5 @@
 use crate::{
-	cmp::{StateLock, StateLockKey, StateMeta},
+	cmp::{State, STATE},
 	primitives::{EventHandler, Tag},
 };
 use matches::matches;
@@ -253,21 +253,12 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 }
 
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
-pub fn update<S: Default>(state_lock_key: &'static impl StateLockKey<S>) {
+pub fn update(_: f64) {
 	// console!(log, "UPDATE START");
-	state_lock_key.lock(|state_lock| {
-		state_lock.view_meta().styles.borrow_mut().clear();
+	STATE.with(|lock| {
+		let mut meta = lock.borrow_mut();
 
-		let mut new_vdom = (state_lock.view_meta().mount)();
-		let mut meta = state_lock.update_meta();
-
-		meta.style.set_text_content(
-			&meta
-				.styles
-				.borrow()
-				.iter()
-				.fold(String::new(), |acc, (class, style)| acc + &format!(".{} {{ {} }}", class, style)),
-		);
+		let mut new_vdom = (meta.render)();
 
 		let element = document().get_element_by_id("__rage__").unwrap();
 		patch_tree(&element, Some(&mut meta.vdom), Some(&mut new_vdom));
@@ -279,15 +270,15 @@ pub fn update<S: Default>(state_lock_key: &'static impl StateLockKey<S>) {
 }
 
 #[allow(clippy::option_unwrap_used)]
-pub fn mount<S: Default, F: Fn() -> Element + 'static>(state_lock_key: &'static impl StateLockKey<S>, mount: F) {
-	state_lock_key.update_meta(|meta| {
+pub fn mount<F: Fn() -> Element + 'static>(mount: F) {
+	STATE.with(|lock| {
+		let mut meta = lock.borrow_mut();
 		let dom_node = meta.vdom.dom_node();
 		DomElement::try_from(dom_node.as_ref())
 			.expect("bad node")
 			.set_attribute("id", "__rage__")
 			.expect("can't set attribute");
 		document().body().unwrap().append_child(dom_node);
-		let _ = std::mem::replace(&mut meta.mount, Box::new(mount));
-		document().head().unwrap().append_child(&meta.style);
+		let _ = std::mem::replace(&mut meta.render, Box::new(mount));
 	})
 }

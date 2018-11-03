@@ -89,7 +89,9 @@ macro_rules! events {
 #[macro_use]
 pub mod primitives;
 pub mod cmp;
-pub mod styled;
+mod styled;
 pub mod vdom;
 
 pub use stdweb;
+pub use self::cmp::{Tracked, Component};
+pub use self::styled::styled;

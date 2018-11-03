@@ -1,113 +1,55 @@
 use maplit::*;
 use std::{
+	rc::Rc,
 	cell::RefCell,
-	collections::HashMap,
 	ops::{Deref, DerefMut},
 };
-use stdweb::web::{document, Element};
+use crate::vdom::Element;
 
 #[allow(missing_debug_implementations)]
-pub struct StateMeta {
-	pub style: Element,
-	pub mount: Box<dyn Fn() -> crate::vdom::Element>,
-	pub styles: RefCell<HashMap<String, String>>,
+pub struct State {
+	pub render: Box<dyn Fn() -> Element>,
 	pub dirty: bool,
-	pub vdom: crate::vdom::Element,
+	pub vdom: Element,
 }
 
-#[allow(missing_debug_implementations)]
-pub struct StateLock<S: Default> {
-	meta: RefCell<StateMeta>,
-	state: RefCell<S>,
+thread_local! {
+	pub static STATE: RefCell<State> = RefCell::new(State {
+		render: Box::new(|| unreachable!()),
+		dirty: false,
+		vdom: Element::new(crate::primitives::Tag::div, children!["Loading..."], attrs![], events![]),
+	});
 }
 
-impl<S: Default> Default for StateLock<S> {
-	#[allow(clippy::result_unwrap_used)]
-	fn default() -> Self {
-		Self {
-			state: RefCell::new(S::default()),
-			meta: RefCell::new(StateMeta {
-				style: document().create_element("style").unwrap(),
-				mount: Box::new(|| unreachable!()),
-				styles: RefCell::new(HashMap::default()),
-				dirty: false,
-				vdom: crate::vdom::Element::new(crate::primitives::Tag::div, children!["Loading..."], attrs![], events![]),
-			}),
-		}
+#[derive(Debug, Default)]
+pub struct Tracked<T>(Rc<RefCell<T>>);
+impl<T> Tracked<T> {
+	pub fn new(state: T) -> Self {
+		Tracked(Rc::new(RefCell::new(state)))
 	}
-}
 
-pub trait StateLockKey<S: Default> {
-	fn lock<R>(&'static self, f: impl FnOnce(&StateLock<S>) -> R) -> R;
+	pub fn view<'a>(&'a self) -> impl Deref<Target=T> + 'a {
+		self.0.borrow()
+	}
 
-	fn update<R>(&'static self, f: impl FnOnce(&mut S) -> R) -> R;
-	fn view<R>(&'static self, f: impl FnOnce(&S) -> R) -> R;
-
-	fn update_meta<R>(&'static self, f: impl FnOnce(&mut StateMeta) -> R) -> R;
-	fn view_meta<R>(&'static self, f: impl FnOnce(&StateMeta) -> R) -> R;
-}
-
-impl<S: Default> StateLockKey<S> for std::thread::LocalKey<StateLock<S>> {
-	fn lock<R>(&'static self, f: impl FnOnce(&StateLock<S>) -> R) -> R {
-		self.with(move |s| {
-			let was_dirty = s.meta.borrow().dirty;
-			let res = f(s);
-			if !was_dirty && s.meta.borrow().dirty {
-				let _ = stdweb::web::window().request_animation_frame(move |_| crate::vdom::update(self));
+	pub fn update<'a>(&'a self) -> impl DerefMut<Target=T> + 'a {
+		STATE.with(|s| {
+			let mut state = s.borrow_mut();
+			if !state.dirty {
+				state.dirty = true;
+				let _ = stdweb::web::window().request_animation_frame(crate::vdom::update);
 			}
-			res
-		})
-	}
-
-	fn update<R>(&'static self, f: impl FnOnce(&mut S) -> R) -> R {
-		self.with(move |s| {
-			if !s.meta.borrow().dirty {
-				let _ = stdweb::web::window().request_animation_frame(move |_| crate::vdom::update(self));
-			}
-			f(&mut s.update())
-		})
-	}
-
-	fn view<R>(&'static self, f: impl FnOnce(&S) -> R) -> R {
-		self.with(move |s| f(&mut s.view()))
-	}
-
-	fn update_meta<R>(&'static self, f: impl FnOnce(&mut StateMeta) -> R) -> R {
-		self.with(move |s| {
-			if !s.meta.borrow().dirty {
-				let _ = stdweb::web::window().request_animation_frame(move |_| crate::vdom::update(self));
-			}
-			f(&mut s.update_meta())
-		})
-	}
-
-	fn view_meta<R>(&'static self, f: impl FnOnce(&StateMeta) -> R) -> R {
-		self.with(move |s| f(&mut s.view_meta()))
+		});
+		self.0.borrow_mut()
 	}
 }
 
-impl<S: Default> StateLock<S> {
-	pub fn update<'a>(&'a self) -> impl DerefMut<Target = S> + 'a {
-		let mut meta = self.meta.borrow_mut();
-		if !meta.dirty {
-			meta.dirty = true;
-		}
-		self.state.borrow_mut()
+impl<T> Clone for Tracked<T> {
+	fn clone(&self) -> Self {
+		Tracked(Rc::clone(&self.0))
 	}
+}
 
-	pub fn update_meta<'a>(&'a self) -> impl DerefMut<Target = StateMeta> + 'a {
-		let mut meta = self.meta.borrow_mut();
-		if !meta.dirty {
-			meta.dirty = true;
-		}
-		meta
-	}
-
-	pub fn view<'a>(&'a self) -> impl Deref<Target = S> + 'a {
-		self.state.borrow()
-	}
-
-	pub fn view_meta<'a>(&'a self) -> impl Deref<Target = StateMeta> + 'a {
-		self.meta.borrow()
-	}
+pub trait Component {
+	fn render(&self) -> Element;
 }
