@@ -48,6 +48,7 @@ pub fn styled(css: &str) -> String {
 	class
 }
 
+#[allow(unused_must_use)]
 pub fn append_css(css: &str) {
 	STATE.with(|state| state.borrow().style_element.append_html(&css));
 }
