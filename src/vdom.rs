@@ -309,14 +309,18 @@ pub fn mount<F: Fn() -> Element + 'static>(mount: F) {
 		macro_rules! attach_cb {
 			(skip, skip, $($name: ident),+$(,)*) => {
 				$(document().add_event_listener(move |e: stdweb::web::event::$name| {
-					let target = e.target().unwrap();
-					if let Ok(id) = js!(return @{&target}.__rage_event_callback;).try_into() {
-						CALLBACKS.with(|c| {
+					let ids: Vec<u32> = js!{return @{&e}.composedPath().reduce((acc, node) => {
+						const id = node.__rage_event_callback;
+						if (id) acc.push(id);
+						return acc;
+					}, []);}.try_into().unwrap();
+					CALLBACKS.with(move |c| {
+						for id in ids {
 							if let Some(f) = c.borrow().$name.get(&id) {
 								return f(&e);
 							}
-						})
-					}
+						}
+					});
 				});)+
 			};
 		}
