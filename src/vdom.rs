@@ -3,10 +3,11 @@ use crate::{
 	primitives::{EventHandler, Tag},
 };
 use matches::matches;
-use std::collections::{HashMap, HashSet};
-use std::cell::RefCell;
+use std::{
+	cell::RefCell,
+	collections::{HashMap, HashSet},
+};
 use stdweb::{
-	traits::*,
 	__internal_console_unsafe,
 	__js_raw_asm,
 	_js_impl,
@@ -175,8 +176,7 @@ fn fix_inputs(node: &DomNode, elem: &Element) {
 				}
 			}
 		},
-		| Tag::select
-		| Tag::textarea => {
+		Tag::select | Tag::textarea => {
 			if let Some(value) = elem.attributes.get("value") {
 				js!(@{node}.value = @{value});
 			}

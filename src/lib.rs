@@ -100,6 +100,8 @@ pub mod cmp;
 mod styled;
 pub mod vdom;
 
+pub use self::{
+	cmp::{Component, Tracked},
+	styled::styled,
+};
 pub use stdweb;
-pub use self::cmp::{Tracked, Component};
-pub use self::styled::styled;

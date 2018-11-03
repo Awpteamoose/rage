@@ -1,17 +1,11 @@
+use crate::vdom::Element;
 use maplit::*;
 use std::{
-	rc::Rc,
 	cell::RefCell,
 	ops::{Deref, DerefMut},
+	rc::Rc,
 };
-use crate::vdom::Element;
-use stdweb::{
-	__internal_console_unsafe,
-	__js_raw_asm,
-	_js_impl,
-	console,
-	js,
-};
+use stdweb::{__internal_console_unsafe, __js_raw_asm, _js_impl, console, js};
 
 #[allow(missing_debug_implementations)]
 pub struct State {
@@ -35,11 +29,11 @@ impl<T> Tracked<T> {
 		Tracked(Rc::new(RefCell::new(state)))
 	}
 
-	pub fn view<'a>(&'a self) -> impl Deref<Target=T> + 'a {
+	pub fn view<'a>(&'a self) -> impl Deref<Target = T> + 'a {
 		self.0.borrow()
 	}
 
-	pub fn update<'a>(&'a self) -> impl DerefMut<Target=T> + 'a {
+	pub fn update<'a>(&'a self) -> impl DerefMut<Target = T> + 'a {
 		STATE.with(|state| {
 			let state = state.borrow();
 			let mut dirty = state.dirty.borrow_mut();

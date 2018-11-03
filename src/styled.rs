@@ -1,11 +1,13 @@
 // TODO: use fast hash
 use std::{
-	collections::hash_map::DefaultHasher,
-	hash::Hasher,
 	cell::RefCell,
-	collections::{HashMap, HashSet},
+	collections::{hash_map::DefaultHasher, HashMap, HashSet},
+	hash::Hasher,
 };
-use stdweb::{traits::*, web::{document, Element as DomElement}};
+use stdweb::{
+	traits::*,
+	web::{document, Element as DomElement},
+};
 
 struct State {
 	style_element: DomElement,
