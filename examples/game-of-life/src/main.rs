@@ -56,6 +56,36 @@
 #![allow(unreachable_pub)]
 #![feature(try_from, try_trait, never_type)]
 
+#[macro_export]
+macro_rules! println {
+	($($arg: tt),+$(,)*) => {
+		use rage::stdweb::{
+			__internal_console_unsafe,
+			__js_raw_asm,
+			_js_impl,
+			console,
+			js,
+		};
+
+		console!(log, format!($($arg,)+));
+	};
+}
+
+#[macro_export]
+macro_rules! eprintln {
+	($($arg: tt),+$(,)*) => {
+		use rage::stdweb::{
+			__internal_console_unsafe,
+			__js_raw_asm,
+			_js_impl,
+			console,
+			js,
+		};
+
+		console!(error, format!($($arg,)+));
+	};
+}
+
 #[macro_use]
 extern crate rage;
 
@@ -72,6 +102,7 @@ use rand::prelude::*;
 use std::{cell::RefCell, collections::HashSet, ops::Add};
 
 thread_local! {
+	pub static CELLS: Tracked<Cells> = Tracked::new(Cells::default());
 	pub static STATE: Tracked<State> = Tracked::new(State::default());
 }
 
@@ -80,7 +111,7 @@ type Cell = ToroidalPoint;
 type Cells = HashSet<ToroidalPoint>;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-struct ToroidalPoint(u32, u32);
+pub struct ToroidalPoint(u32, u32);
 
 #[allow(clippy::suspicious_arithmetic_impl)]
 impl Add<(i32, i32)> for ToroidalPoint {
@@ -133,7 +164,6 @@ fn neighbours(cells: &Cells, point: Cell) -> Vec<Cell> {
 
 #[derive(Debug)]
 pub struct State {
-	cells: Cells,
 	running: bool,
 	grid_size: u32,
 	rng: RefCell<SmallRng>,
@@ -142,7 +172,6 @@ pub struct State {
 impl Default for State {
 	fn default() -> Self {
 		Self {
-			cells: Cells::default(),
 			running: false,
 			grid_size: 75,
 			rng: {
@@ -172,18 +201,18 @@ fn cells(state: &Tracked<State>) -> Vec<Element> {
 						background-color: {color};
 						box-sizing: content-box;
 					"#,
-						color = if state.view().cells.get(&ToroidalPoint(x, y)).is_some() { "black" } else { "white" }
+						color = if CELLS.with(|cells| cells.view().get(&ToroidalPoint(x, y)).is_some()) { "black" } else { "white" }
 					)),
 				],
 				events![
-					enclose!{(state) move |_: event::ClickEvent| {
-						let mut state = state.update();
+					move |_: event::ClickEvent| CELLS.with(|c| {
+						let mut cells = c.update();
 						console!(log, "click start");
 
-						if state.cells.get(&ToroidalPoint(x, y)).is_some() { let _ = state.cells.remove(&ToroidalPoint(x, y)); }
-						else { let _ = state.cells.insert(ToroidalPoint(x, y)); };
+						if cells.get(&ToroidalPoint(x, y)).is_some() { let _ = cells.remove(&ToroidalPoint(x, y)); }
+						else { let _ = cells.insert(ToroidalPoint(x, y)); };
 						console!(log, "click end");
-					}},
+					}),
 				],
 			));
 		}
@@ -216,20 +245,21 @@ fn randomize_button(state: &Tracked<State>) -> Element {
 			"value" => "randomize",
 		],
 		events![
-			enclose!{(state) move |_: event::ClickEvent| {
-				let mut state = state.update();
+			enclose!{(state) move |_: event::ClickEvent| CELLS.with(|c| {
+				let mut cells = c.update();
+				let state = state.update();
 				let grid_size = state.grid_size;
 
 				for x in 0..grid_size {
 					for y in 0..grid_size {
 						if state.rng.borrow_mut().gen_bool(0.5) {
-							let _ = state.cells.insert(ToroidalPoint(x, y));
+							let _ = cells.insert(ToroidalPoint(x, y));
 						} else {
-							let _ = state.cells.remove(&ToroidalPoint(x, y));
+							let _ = cells.remove(&ToroidalPoint(x, y));
 						}
 					}
 				}
-			}},
+			})},
 		],
 	)
 }
@@ -242,9 +272,7 @@ fn clear_button(state: &Tracked<State>) -> Element {
 			"value" => "clear",
 		],
 		events![
-			enclose!{(state) move |_: event::ClickEvent| {
-				state.update().cells.clear();
-			}},
+			move |_: event::ClickEvent| CELLS.with(|c| c.update().clear()),
 		],
 	)
 }
@@ -294,46 +322,43 @@ fn container(state: &Tracked<State>) -> Element {
 	)
 }
 
-fn tick(_: f64) {
-	STATE.with(|lock| {
+fn tick(state: &Tracked<State>) {
+	if !state.view().running { return; }
+	let grid_size = state.view().grid_size;
+	CELLS.with(|c| {
+		let mut cells = c.update();
+
 		let mut living = Vec::new();
 		let mut dead = Vec::new();
-		{
-			let state = &lock.view();
-			let grid_size = state.grid_size;
 
-			for x in 0..grid_size {
-				for y in 0..grid_size {
-					if state.cells.get(&ToroidalPoint(x, y)).is_none() && (neighbours(&state.cells, ToroidalPoint(x, y)).len() == 3) {
-						living.push(ToroidalPoint(x, y));
-					}
-					if state.cells.get(&ToroidalPoint(x, y)).is_some() {
-						let num_neighbours = neighbours(&state.cells, ToroidalPoint(x, y)).len();
-						match num_neighbours {
-							0..=1 => dead.push(ToroidalPoint(x, y)),
-							2..=3 => {},
-							_ => dead.push(ToroidalPoint(x, y)),
-						}
+		for x in 0..grid_size {
+			for y in 0..grid_size {
+				if cells.get(&ToroidalPoint(x, y)).is_none() && (neighbours(&cells, ToroidalPoint(x, y)).len() == 3) {
+					living.push(ToroidalPoint(x, y));
+				}
+				if cells.get(&ToroidalPoint(x, y)).is_some() {
+					let num_neighbours = neighbours(&cells, ToroidalPoint(x, y)).len();
+					match num_neighbours {
+						0..=1 => dead.push(ToroidalPoint(x, y)),
+						2..=3 => {},
+						_ => dead.push(ToroidalPoint(x, y)),
 					}
 				}
 			}
 		}
 
-		let state = &mut lock.update();
 		for point in living.into_iter() {
-			let _ = state.cells.insert(point);
+			let _ = cells.insert(point);
 		}
 		for point in dead.into_iter() {
-			let _ = state.cells.remove(&point);
+			let _ = cells.remove(&point);
 		}
-	});
+	})
 }
 
 fn root() -> Element {
 	STATE.with(|state| {
-		if state.view().running {
-			let _ = stdweb::web::window().request_animation_frame(tick);
-		}
+		tick(state);
 
 		primitives::div(
 			children![
@@ -353,36 +378,6 @@ fn root() -> Element {
 	})
 }
 
-#[macro_export]
-macro_rules! println {
-	($($arg: tt),+$(,)*) => {
-		use rage::stdweb::{
-			__internal_console_unsafe,
-			__js_raw_asm,
-			_js_impl,
-			console,
-			js,
-		};
-
-		console!(log, format!($($arg,)+));
-	};
-}
-
-#[macro_export]
-macro_rules! eprintln {
-	($($arg: tt),+$(,)*) => {
-		use rage::stdweb::{
-			__internal_console_unsafe,
-			__js_raw_asm,
-			_js_impl,
-			console,
-			js,
-		};
-
-		console!(error, format!($($arg,)+));
-	};
-}
-
 fn main() {
 	std::panic::set_hook(Box::new(|i| {
 		// TODO: in release
@@ -390,5 +385,24 @@ fn main() {
 		eprintln!("{}", i);
 	}));
 	rage::stdweb::web::document().set_title("Game of Life");
+
+	// CELLS.with(|c| {
+	//     let mut cells = c.update();
+	//     STATE.with(|state| {
+	//         let state = state.update();
+	//         let grid_size = state.grid_size;
+
+	//         for x in 0..grid_size {
+	//             for y in 0..grid_size {
+	//                 if state.rng.borrow_mut().gen_bool(0.5) {
+	//                     let _ = cells.insert(ToroidalPoint(x, y));
+	//                 } else {
+	//                     let _ = cells.remove(&ToroidalPoint(x, y));
+	//                 }
+	//             }
+	//         }
+	//     });
+	// });
+
 	vdom::mount(root);
 }
