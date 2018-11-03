@@ -1,7 +1,7 @@
+use crate::vdom::Element;
 use std::collections::HashMap;
 use stdweb::web::event;
 use strum_macros::AsStaticStr;
-use crate::vdom::Element;
 
 // TODO: I could skip the Event bit, but concat_idents! doesn't work properly ¯\_(ツ)_/¯
 macro_rules! __event_idents {
@@ -34,11 +34,11 @@ macro_rules! __events {
 	(skip, skip, $($name: ident),+$(,)*) => {
 		#[allow(missing_debug_implementations, clippy::pub_enum_variant_names)]
 		pub enum EventHandler {
-			$($name(Box<dyn Fn(event::$name)>),)+
+			$($name(Box<dyn Fn(&event::$name)>),)+
 		}
 
 		$(
-			impl Into<EventHandler> for Box<dyn Fn(event::$name)> {
+			impl Into<EventHandler> for Box<dyn Fn(&event::$name)> {
 				fn into(self) -> EventHandler {
 					$crate::primitives::EventHandler::$name(self)
 				}
@@ -48,18 +48,6 @@ macro_rules! __events {
 }
 
 __event_idents![__events, skip, skip];
-
-macro_rules! __event_listeners {
-	($handler: expr, $element: expr, $($name: ident),+$(,)*) => {
-		match $handler {
-			$(
-				$crate::primitives::EventHandler::$name(f) => {
-					$element.add_event_listener(move |e: stdweb::web::event::$name| f(e))
-				},
-			)+
-		}
-	};
-}
 
 macro_rules! __primitives {
 	($($name: ident),+$(,)*) => {
@@ -102,30 +90,3 @@ __primitives!(
 	text,      textarea,        tfoot,          th,        thead,           time,     title,     tr,
 	track,     tspan,           u,              ul,        var,             video,    wbr,
 );
-
-macro_rules! children {
-	() => {
-		vec![]
-	};
-	($($e: expr),+$(,)*) => {
-		vec![$($e.into(),)+]
-	};
-}
-
-macro_rules! attrs {
-	() => {
-		hashmap![]
-	};
-	($($k: expr => $v: expr),+$(,)*) => {
-		hashmap![$($k.into() => $v.into(),)+]
-	};
-}
-
-macro_rules! events {
-	() => {
-		vec![]
-	};
-	($($e: expr),+$(,)*) => {
-		vec![$(<Box<dyn Fn(_)>>::into(Box::new($e)),)+]
-	};
-}

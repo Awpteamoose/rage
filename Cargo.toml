@@ -1,29 +1,18 @@
 [package]
 name = "rage"
-version = "0.0.1"
+version = "0.0.10"
 edition = "2018"
 description = "web shit for rust age, heavy wip"
 license = "CC0-1.0"
 authors = ["Awpteamoose <cargo@awpteamoose.my.to>"]
+repository = "https://github.com/Awpteamoose/rage"
+homepage = "https://awpteamoose.github.io/rage"
 
 [dependencies]
-lazy_static = "1.1.0"
-regex = "1.0.5"
-error-chain = "0.12.0"
 matches = "0.1.8"
 maplit = "1.0.1"
-serde = "1.0.79"
-serde_derive = "1.0.79"
-stdweb = { git = "https://github.com/koute/stdweb", features = ["experimental_features_which_may_break_on_minor_version_bumps", "futures-support"] }
-futures-preview = "0.3.0-alpha.7"
-rand = "0.5.5"
+serde = "1.0.80"
+serde_derive = "1.0.80"
+stdweb = { version = "0.4.10", features = ["experimental_features_which_may_break_on_minor_version_bumps", "futures-support"] }
 strum = "0.11.0"
 strum_macros = "0.11.0"
-
-[profile.dev]
-panic = "abort"
-
-[profile.release]
-panic = "abort"
-debug = true
-# lto = true

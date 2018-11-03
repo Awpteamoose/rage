@@ -1,0 +1,31 @@
+cargo-features = ["rename-dependency"]
+
+[package]
+name = "server"
+version = "0.0.1"
+edition = "2018"
+description = "game of life example"
+license = "CC0-1.0"
+authors = ["Awpteamoose <cargo@awpteamoose.my.to>"]
+
+[dependencies]
+lazy_static = "1.1.0"
+regex = "1.0.5"
+error-chain = "0.12.0"
+matches = "0.1.8"
+maplit = "1.0.1"
+serde = "1.0.79"
+serde_derive = "1.0.79"
+rand = "0.5.5"
+strum = "0.11.0"
+strum_macros = "0.11.0"
+actix-web = { version = "0.7.13", features = ["flate2-c"] }
+actix = "0.7.5"
+serde_json = "1.0.26"
+serde_cbor = "0.9.0"
+env_logger = "0.5.12"
+futures-preview = { version = "0.3.0-alpha.9", features = ["compat"] }
+futures_01 = { version = "0.1.25", package = "futures" }
+toml = "0.4.6"
+bytes = "0.4.9"
+shared = { path = "../shared" }

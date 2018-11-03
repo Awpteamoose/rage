@@ -1,4 +1,12 @@
-use std::collections::HashMap;
+use crate::{
+	cmp::{State, STATE},
+	primitives::{EventHandler, Tag},
+};
+use matches::matches;
+use std::{
+	cell::RefCell,
+	collections::{HashMap, HashSet},
+};
 use stdweb::{
 	__internal_console_unsafe,
 	__js_raw_asm,
@@ -6,15 +14,29 @@ use stdweb::{
 	console,
 	js,
 	traits::*,
-	unstable::TryFrom,
+	unstable::{TryFrom, TryInto},
 	web::{document, Element as DomElement, Node as DomNode},
 };
 use strum::AsStaticRef;
-use crate::{
-	primitives::{Tag, EventHandler},
-	cmp::{StateLock, StateMeta, StateLockKey},
-};
-use matches::matches;
+
+macro_rules! cb_map {
+	($callbacks: ident, skip, $($name: ident),+$(,)*) => {
+		#[derive(Default)]
+		#[allow(dead_code, non_snake_case, missing_debug_implementation)]
+		pub struct $callbacks {
+			pub id: u32,
+			$(
+				pub $name: HashMap<u32, Box<dyn Fn(&stdweb::web::event::$name)>>,
+			)+
+		}
+	};
+}
+
+__event_idents![cb_map, Callbacks, skip];
+
+thread_local! {
+	pub static CALLBACKS: RefCell<Callbacks> = RefCell::new(Callbacks::default());
+}
 
 pub struct Element {
 	pub dom_reference: Option<DomNode>,
@@ -23,7 +45,7 @@ pub struct Element {
 	pub children: Vec<Element>,
 	pub attributes: HashMap<String, String>,
 	pub event_handlers: Option<Vec<EventHandler>>,
-	pub listener_handles: Vec<stdweb::web::EventListenerHandle>,
+	pub callback_id: u32,
 }
 
 impl PartialEq for Element {
@@ -54,23 +76,23 @@ impl std::fmt::Debug for Element {
 }
 
 impl Element {
-	pub fn new(
-		tag: Tag,
-		children: Vec<Self>,
-		attributes: HashMap<String, String>,
-		event_handlers: Vec<EventHandler>,
-	) -> Self {
+	pub fn new(tag: Tag, children: Vec<Self>, attributes: HashMap<String, String>, event_handlers: Vec<EventHandler>) -> Self {
 		Self {
 			dom_reference: None,
 			tag,
 			children,
 			attributes,
 			event_handlers: Some(event_handlers),
-			listener_handles: Vec::new(),
+			callback_id: CALLBACKS.with(move |c| {
+				let mut callbacks = c.borrow_mut();
+				let id = callbacks.id;
+				callbacks.id = callbacks.id.overflowing_add(1).0;
+				id
+			}),
 		}
 	}
 
-	#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used, clippy::redundant_closure)]
+	#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used, clippy::redundant_closure, unused_must_use)]
 	pub fn render(&mut self) -> DomNode {
 		if let Tag::text_node(s) = &self.tag {
 			return document().create_text_node(s).into();
@@ -83,23 +105,35 @@ impl Element {
 		}
 
 		for (name, value) in self.attributes.iter() {
-			element.set_attribute(name, value).unwrap();
+			element.set_attribute(name, value);
 		}
+
+		js!(@{&element}.__rage_event_callback = @{self.callback_id});
 
 		element.into()
 	}
 
 	pub fn attach_handlers(&mut self) {
-		let element = self.dom_reference.as_ref().unwrap();
-		let event_handlers = self.event_handlers.take().unwrap();
-		std::mem::replace(&mut self.listener_handles, event_handlers.into_iter().map(|handler| __event_idents![__event_listeners, handler, element]).collect());
-	}
-
-	pub fn detach_handlers(&mut self) {
-		let listener_handles = std::mem::replace(&mut self.listener_handles, vec![]);
-		for handle in listener_handles {
-			handle.remove();
+		for child in &mut self.children {
+			child.attach_handlers();
 		}
+		// if already attached - just return
+		let event_handlers = if let Some(x) = self.event_handlers.take() { x } else { return; };
+		if event_handlers.is_empty() { return; };
+		CALLBACKS.with(move |c| {
+			let mut callbacks = c.borrow_mut();
+			for handler in event_handlers {
+				macro_rules! handle {
+					(skip, skip, $($name: ident),+$(,)*) => {
+						match handler {
+							$(EventHandler::$name(handler) => { let _ = callbacks.$name.insert(self.callback_id, handler); },)+
+						}
+					};
+				}
+
+				__event_idents!(handle, skip, skip)
+			}
+		});
 	}
 
 	pub fn dom_node(&mut self) -> &DomNode {
@@ -117,94 +151,184 @@ impl<S: Into<String>> From<S> for Element {
 	}
 }
 
-// TODO: review, rewrite, avoid unwraps, avoid clones, avoid retardation
-#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
-pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Option<&mut Element>) {
-	match (old, new) {
-		(None, Some(new)) => {
-			parent_dom.append_child(new.dom_node());
-			new.attach_handlers();
-			if new.children.is_empty() { return; }
-			let new_parent = DomElement::try_from(new.dom_reference.as_ref().unwrap().clone()).unwrap();
-			for child in &mut new.children {
-				patch_tree(&new_parent, None, Some(child));
-			}
-		},
-		(Some(old), None) => {
-			let _ = parent_dom.remove_child(old.dom_node()).unwrap();
-		},
-		(Some(old), Some(new)) => {
-			old.detach_handlers();
+fn fix_inputs(node: &DomNode, elem: &Element) {
+	for child in &elem.children {
+		if let Some(node) = &child.dom_reference {
+			fix_inputs(node, child);
+		}
+	}
 
-			if old == new {
-				new.dom_reference = old.dom_reference.take();
-				new.attach_handlers();
-				let children_number = new.children.len();
-				if children_number == 0 { return; }
-				let new_parent = DomElement::try_from(new.dom_reference.as_ref().unwrap().clone()).unwrap();
-				for id in 0..children_number {
-					patch_tree(&new_parent, old.children.get_mut(id), new.children.get_mut(id));
-				}
-				return;
-			}
-
-			if (old.tag != new.tag) || matches!(new.tag, Tag::text_node(_)) {
-				let _ = parent_dom.replace_child(new.dom_node(), old.dom_node()).unwrap();
-				new.attach_handlers();
-				return;
-			}
-
-			new.dom_reference = old.dom_reference.take();
-			new.attach_handlers();
-
-			let new_dom = DomElement::try_from(new.dom_reference.as_ref().unwrap().clone()).unwrap();
-
-			if new.attributes != old.attributes {
-				for (name, value) in new.attributes.iter() {
-					new_dom.set_attribute(name, value).unwrap();
+	// inputs are retarded
+	match elem.tag {
+		Tag::input => {
+			if let Some(input_type) = elem.attributes.get("type") {
+				match input_type as &str {
+					"checkbox" | "radio" => {
+						let checked = elem.attributes.get("checked").is_some();
+						js!(@{node}.checked = @{checked});
+					},
+					"text" => {
+						if let Some(value) = elem.attributes.get("value") {
+							js!(@{node}.value = @{value});
+						}
+					},
+					_ => {},
 				}
 			}
-
-			for id in 0..usize::max(old.children.len(), new.children.len()) {
-				patch_tree(&new_dom, old.children.get_mut(id), new.children.get_mut(id));
+		},
+		Tag::select | Tag::textarea => {
+			if let Some(value) = elem.attributes.get("value") {
+				js!(@{node}.value = @{value});
 			}
 		},
 		_ => {},
 	}
 }
 
+// TODO: review, rewrite, avoid unwraps, avoid clones, avoid retardation
+#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used, unused_must_use)]
+pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Option<&mut Element>) {
+	match (old, new) {
+		(None, Some(new)) => {
+			parent_dom.append_child(new.dom_node());
+
+			if new.children.is_empty() {
+				new.attach_handlers();
+				fix_inputs(&new.dom_reference.as_ref().unwrap(), &new);
+				return;
+			}
+
+			let new_parent = DomElement::try_from(new.dom_reference.as_ref().unwrap().as_ref()).unwrap();
+			for child in &mut new.children {
+				patch_tree(&new_parent, None, Some(child));
+			}
+
+			new.attach_handlers();
+			fix_inputs(&new.dom_reference.as_ref().unwrap(), &new);
+		},
+		(Some(old), None) => {
+			parent_dom.remove_child(old.dom_node());
+		},
+		(Some(old), Some(new)) => {
+			if old == new {
+				new.dom_reference = old.dom_reference.take();
+				if new.callback_id != old.callback_id {
+					js!(@{&new.dom_reference}.__rage_event_callback = @{new.callback_id});
+				}
+				let children_number = new.children.len();
+				if children_number == 0 {
+					new.attach_handlers();
+					fix_inputs(&new.dom_reference.as_ref().unwrap(), &new);
+					return;
+				}
+
+				let new_parent = DomElement::try_from(new.dom_reference.as_ref().unwrap().as_ref()).unwrap();
+				for id in 0..children_number {
+					patch_tree(&new_parent, old.children.get_mut(id), new.children.get_mut(id));
+				}
+
+				new.attach_handlers();
+				fix_inputs(&new.dom_reference.as_ref().unwrap(), &new);
+				return;
+			}
+
+			if (old.tag != new.tag) || matches!(new.tag, Tag::text_node(_)) {
+				let new_dom_node = new.dom_node();
+				let old_dom_node = old.dom_node();
+				parent_dom.replace_child(new_dom_node, old_dom_node);
+				new.attach_handlers();
+				fix_inputs(&new.dom_reference.as_ref().unwrap(), &new);
+				return;
+			}
+
+			new.dom_reference = old.dom_reference.take();
+			if new.callback_id != old.callback_id {
+				js!(@{&new.dom_reference}.__rage_event_callback = @{new.callback_id});
+			}
+
+			let new_dom = DomElement::try_from(new.dom_reference.as_ref().unwrap().as_ref()).unwrap();
+
+			if new.attributes != old.attributes {
+				let all_attributes: HashSet<_> = old.attributes.keys().chain(new.attributes.keys()).collect();
+				for name in all_attributes {
+					match new.attributes.get(name) {
+						// still in new
+						Some(new_value) => {
+							if let Some(old_value) = old.attributes.get(name) {
+								// changed
+								if old_value != new_value {
+									new_dom.set_attribute(name, new_value);
+								}
+							} else {
+								// wasn't present
+								new_dom.set_attribute(name, new_value);
+							}
+						},
+						// removed in new
+						None => new_dom.remove_attribute(name),
+					}
+				}
+			}
+
+			for id in 0..usize::max(old.children.len(), new.children.len()) {
+				patch_tree(&new_dom, old.children.get_mut(id), new.children.get_mut(id));
+			}
+
+			new.attach_handlers();
+			fix_inputs(&new.dom_reference.as_ref().unwrap(), &new);
+		},
+		_ => {},
+	}
+}
+
 #[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
-pub fn update<S: Default>(state_lock_key: &'static impl StateLockKey<S>) {
+pub fn update(_: f64) {
 	// console!(log, "UPDATE START");
-	state_lock_key.lock(|state_lock| {
-		state_lock.view_meta().styles.borrow_mut().clear();
-
-		let mut new_vdom = (state_lock.view_meta().mount)();
-		let mut meta = state_lock.update_meta();
-
-		meta.style.set_text_content(
-			&meta.styles
-				.borrow()
-				.iter()
-				.fold(String::new(), |acc, (class, style)| acc + &format!(".{} {{ {} }}", class, style)),
-		);
+	STATE.with(|lock| {
+		*lock.borrow().dirty.borrow_mut() = false;
+		CALLBACKS.with(|c| *c.borrow_mut() = Callbacks::default());
+		let mut new_vdom = (lock.borrow().render)();
+		let mut meta = lock.borrow_mut();
 
 		let element = document().get_element_by_id("__rage__").unwrap();
 		patch_tree(&element, Some(&mut meta.vdom), Some(&mut new_vdom));
 		meta.vdom = new_vdom;
-
-		meta.dirty = false;
 	});
 	// console!(log, "UPDATE END");
 }
 
-#[allow(clippy::option_unwrap_used)]
-pub fn mount<S: Default, F: Fn() -> Element + 'static>(state_lock_key: &'static impl StateLockKey<S>, mount: F) {
-	state_lock_key.update_meta(|meta| {
+#[allow(clippy::option_unwrap_used, unused_must_use)]
+pub fn mount<F: Fn() -> Element + 'static>(mount: F) {
+	STATE.with(|lock| {
+		let mut meta = lock.borrow_mut();
 		let dom_node = meta.vdom.dom_node();
-		DomElement::try_from(dom_node.clone()).unwrap().set_attribute("id", "__rage__").unwrap();
+		DomElement::try_from(dom_node.as_ref())
+			.expect("bad node")
+			.set_attribute("id", "__rage__");
+
+		macro_rules! attach_cb {
+			(skip, skip, $($name: ident),+$(,)*) => {
+				$(document().add_event_listener(move |e: stdweb::web::event::$name| {
+					let ids: Vec<u32> = js!{return @{&e}.composedPath().reduce((acc, node) => {
+						const id = node.__rage_event_callback;
+						if (id) acc.push(id);
+						return acc;
+					}, []);}.try_into().unwrap();
+					CALLBACKS.with(move |c| {
+						for id in ids {
+							if let Some(f) = c.borrow().$name.get(&id) {
+								return f(&e);
+							}
+						}
+					});
+				});)+
+			};
+		}
+
+		__event_idents![attach_cb, skip, skip];
+
 		document().body().unwrap().append_child(dom_node);
-		let _ = std::mem::replace(&mut meta.mount, Box::new(mount));
-		document().head().unwrap().append_child(&meta.style);
-	})
+		std::mem::replace(&mut meta.render, Box::new(mount));
+	});
+	update(0.);
 }

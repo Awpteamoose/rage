@@ -55,53 +55,39 @@
 #![recursion_limit = "128"]
 #![allow(unreachable_pub)]
 #![feature(try_from, try_trait, never_type)]
+#![feature(async_await, await_macro, futures_api, pin)]
 
-#[macro_export]
-macro_rules! children {
-	() => {
-		vec![]
-	};
-	($($e: expr),+$(,)*) => {
-		std::vec![$($e.into(),)+]
-	};
+use http::method::Method as HttpMethod;
+use serde_derive::{Deserialize, Serialize};
+use strum_macros::AsStaticStr;
+
+#[derive(Debug)]
+pub enum Method {
+	TestMethod,
 }
 
-#[macro_export]
-macro_rules! attrs {
-	() => {
-		maplit::hashmap![]
-	};
-	($($k: expr => $v: expr),+$(,)*) => {
-		hashmap![$($k.into() => $v.into(),)+]
-	};
+impl Method {
+	pub fn as_str(&self) -> &'static str {
+		match self {
+			Method::TestMethod => "/api/test-method",
+		}
+	}
+
+	pub fn method(&self) -> HttpMethod {
+		match self {
+			Method::TestMethod => HttpMethod::POST,
+		}
+	}
 }
 
-#[macro_export]
-macro_rules! events {
-	() => {
-		std::vec![]
-	};
-	($($e: expr),+$(,)*) => {
-		vec![$(<Box<dyn Fn(&_)>>::into(Box::new($e)),)+]
-	};
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TestArg {
+	pub prop1: u32,
+	pub prop2: String,
 }
 
-#[macro_export]
-macro_rules! enclose {
-	(($($x:ident),*) $y:expr) => {{
-		$(let $x = $x.clone();)*
-		$y
-	}};
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TestReply {
+	pub some: bool,
+	pub other: String,
 }
-
-#[macro_use]
-pub mod primitives;
-pub mod cmp;
-mod styled;
-pub mod vdom;
-
-pub use self::{
-	cmp::{Component, Tracked},
-	styled::styled,
-};
-pub use stdweb;
