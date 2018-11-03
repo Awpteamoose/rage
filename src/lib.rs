@@ -102,6 +102,6 @@ pub mod vdom;
 
 pub use self::{
 	cmp::{Component, Tracked},
-	styled::styled,
+	styled::{styled, append_css},
 };
 pub use stdweb;
