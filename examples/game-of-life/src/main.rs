@@ -102,7 +102,6 @@ use rand::prelude::*;
 use std::{cell::RefCell, collections::HashSet, ops::Add};
 
 thread_local! {
-	pub static CELLS: Tracked<Cells> = Tracked::new(Cells::default());
 	pub static STATE: Tracked<State> = Tracked::new(State::default());
 }
 
@@ -114,48 +113,45 @@ type Cells = HashSet<ToroidalPoint>;
 pub struct ToroidalPoint(u32, u32);
 
 #[allow(clippy::suspicious_arithmetic_impl)]
-impl Add<(i32, i32)> for ToroidalPoint {
+impl Add<(i32, i32, u32)> for ToroidalPoint {
 	type Output = Self;
 
-	fn add(self, other: (i32, i32)) -> Self {
-		STATE.with(|s| {
-			let state = s.view();
-			let grid_size = state.grid_size;
+	fn add(self, other: (i32, i32, u32)) -> Self {
+		let grid_size = other.2;
 
-			let x = if other.0 > 0 {
-				let x = self.0 + other.0 as u32;
-				if x >= grid_size { x - grid_size }
-				else { x }
-			} else {
-				let other_x = other.0.abs() as u32;
-				let x = self.0.checked_sub(other_x);
-				if let Some(x) = x { x } else { grid_size - other_x + self.0 }
-			};
-			let y = if other.1 > 0 {
-				let y = self.1 + other.1 as u32;
-				if y >= grid_size { y - grid_size }
-				else { y }
-			} else {
-				let other_y = other.1.abs() as u32;
-				let y = self.1.checked_sub(other_y);
-				if let Some(y) = y { y } else { grid_size - other_y + self.1 }
-			};
+		let x = if other.0 > 0 {
+			let x = self.0 + other.0 as u32;
+			if x >= grid_size { x - grid_size }
+			else { x }
+		} else {
+			let other_x = other.0.abs() as u32;
+			let x = self.0.checked_sub(other_x);
+			if let Some(x) = x { x } else { grid_size - other_x + self.0 }
+		};
+		let y = if other.1 > 0 {
+			let y = self.1 + other.1 as u32;
+			if y >= grid_size { y - grid_size }
+			else { y }
+		} else {
+			let other_y = other.1.abs() as u32;
+			let y = self.1.checked_sub(other_y);
+			if let Some(y) = y { y } else { grid_size - other_y + self.1 }
+		};
 
-			ToroidalPoint(x, y)
-		})
+		ToroidalPoint(x, y)
 	}
 }
 
-fn neighbours(cells: &Cells, point: Cell) -> Vec<Cell> {
+fn neighbours(cells: &Cells, point: Cell, s: u32) -> Vec<Cell> {
 	vec![
-		point + (-1, -1),
-		point + (-1, 0),
-		point + (-1, 1),
-		point + (0, -1),
-		point + (0, 1),
-		point + (1, -1),
-		point + (1, 0),
-		point + (1, 1),
+		point + (-1, -1, s),
+		point + (-1, 0, s),
+		point + (-1, 1, s),
+		point + (0, -1, s),
+		point + (0, 1, s),
+		point + (1, -1, s),
+		point + (1, 0, s),
+		point + (1, 1, s),
 	]
 		.into_iter()
 		.filter(|x| cells.contains(&x))
@@ -167,12 +163,13 @@ pub struct State {
 	running: bool,
 	grid_size: u32,
 	rng: RefCell<SmallRng>,
+	cells: Cells,
 }
 
 impl Default for State {
 	fn default() -> Self {
 		Self {
-			running: true,
+			running: false,
 			grid_size: 75,
 			rng: {
 				let mut bytes: [u8; 16] = [0; 16];
@@ -183,6 +180,7 @@ impl Default for State {
 				}
 				RefCell::new(rand::rngs::SmallRng::from_seed(bytes))
 			},
+			cells: Cells::default(),
 		}
 	}
 }
@@ -201,18 +199,18 @@ fn cells(state: &Tracked<State>) -> Vec<Element> {
 						background-color: {color};
 						box-sizing: content-box;
 					"#,
-						color = if CELLS.with(|cells| cells.view().get(&ToroidalPoint(x, y)).is_some()) { "black" } else { "white" }
+						color = if state.view().cells.get(&ToroidalPoint(x, y)).is_some() { "black" } else { "white" }
 					)),
 				],
 				events![
-					move |_: &event::ClickEvent| CELLS.with(|c| {
-						let mut cells = c.update();
+					enclose!{(state) move |_: &event::ClickEvent| {
+						let mut state = state.update();
 						console!(log, "click start");
 
-						if cells.get(&ToroidalPoint(x, y)).is_some() { let _ = cells.remove(&ToroidalPoint(x, y)); }
-						else { let _ = cells.insert(ToroidalPoint(x, y)); };
+						if state.cells.get(&ToroidalPoint(x, y)).is_some() { let _ = state.cells.remove(&ToroidalPoint(x, y)); }
+						else { let _ = state.cells.insert(ToroidalPoint(x, y)); };
 						console!(log, "click end");
-					}),
+					}},
 				],
 			));
 		}
@@ -245,21 +243,20 @@ fn randomize_button(state: &Tracked<State>) -> Element {
 			"value" => "randomize",
 		],
 		events![
-			enclose!{(state) move |_: &event::ClickEvent| CELLS.with(|c| {
-				let mut cells = c.update();
-				let state = state.update();
+			enclose!{(state) move |_: &event::ClickEvent| {
+				let mut state = state.update();
 				let grid_size = state.grid_size;
 
 				for x in 0..grid_size {
 					for y in 0..grid_size {
 						if state.rng.borrow_mut().gen_bool(0.5) {
-							let _ = cells.insert(ToroidalPoint(x, y));
+							let _ = state.cells.insert(ToroidalPoint(x, y));
 						} else {
-							let _ = cells.remove(&ToroidalPoint(x, y));
+							let _ = state.cells.remove(&ToroidalPoint(x, y));
 						}
 					}
 				}
-			})},
+			}},
 		],
 	)
 }
@@ -272,7 +269,7 @@ fn clear_button(state: &Tracked<State>) -> Element {
 			"value" => "clear",
 		],
 		events![
-			move |_: &event::ClickEvent| CELLS.with(|c| c.update().clear()),
+			enclose!{(state) move |_: &event::ClickEvent| state.update().cells.clear()},
 		],
 	)
 }
@@ -325,35 +322,33 @@ fn container(state: &Tracked<State>) -> Element {
 fn tick(state: &Tracked<State>) {
 	if !state.view().running { return; }
 	let grid_size = state.view().grid_size;
-	CELLS.with(|c| {
-		let mut cells = c.update();
 
-		let mut living = Vec::new();
-		let mut dead = Vec::new();
+	let mut state = state.update();
+	let mut living = Vec::new();
+	let mut dead = Vec::new();
 
-		for x in 0..grid_size {
-			for y in 0..grid_size {
-				if cells.get(&ToroidalPoint(x, y)).is_none() && (neighbours(&cells, ToroidalPoint(x, y)).len() == 3) {
-					living.push(ToroidalPoint(x, y));
-				}
-				if cells.get(&ToroidalPoint(x, y)).is_some() {
-					let num_neighbours = neighbours(&cells, ToroidalPoint(x, y)).len();
-					match num_neighbours {
-						0..=1 => dead.push(ToroidalPoint(x, y)),
-						2..=3 => {},
-						_ => dead.push(ToroidalPoint(x, y)),
-					}
+	for x in 0..grid_size {
+		for y in 0..grid_size {
+			if state.cells.get(&ToroidalPoint(x, y)).is_none() && (neighbours(&state.cells, ToroidalPoint(x, y), state.grid_size).len() == 3) {
+				living.push(ToroidalPoint(x, y));
+			}
+			if state.cells.get(&ToroidalPoint(x, y)).is_some() {
+				let num_neighbours = neighbours(&state.cells, ToroidalPoint(x, y), state.grid_size).len();
+				match num_neighbours {
+					0..=1 => dead.push(ToroidalPoint(x, y)),
+					2..=3 => {},
+					_ => dead.push(ToroidalPoint(x, y)),
 				}
 			}
 		}
+	}
 
-		for point in living.into_iter() {
-			let _ = cells.insert(point);
-		}
-		for point in dead.into_iter() {
-			let _ = cells.remove(&point);
-		}
-	})
+	for point in living.into_iter() {
+		let _ = state.cells.insert(point);
+	}
+	for point in dead.into_iter() {
+		let _ = state.cells.remove(&point);
+	}
 }
 
 fn root() -> Element {
@@ -386,22 +381,20 @@ fn main() {
 	}));
 	rage::stdweb::web::document().set_title("Game of Life");
 
-	CELLS.with(|c| {
-		let mut cells = c.update();
-		STATE.with(|state| {
-			let state = state.update();
-			let grid_size = state.grid_size;
+	STATE.with(|state| {
+		let mut state = state.update();
+		state.running = true;
+		let grid_size = state.grid_size;
 
-			for x in 0..grid_size {
-				for y in 0..grid_size {
-					if state.rng.borrow_mut().gen_bool(0.5) {
-						let _ = cells.insert(ToroidalPoint(x, y));
-					} else {
-						let _ = cells.remove(&ToroidalPoint(x, y));
-					}
+		for x in 0..grid_size {
+			for y in 0..grid_size {
+				if state.rng.borrow_mut().gen_bool(0.5) {
+					let _ = state.cells.insert(ToroidalPoint(x, y));
+				} else {
+					let _ = state.cells.remove(&ToroidalPoint(x, y));
 				}
 			}
-		});
+		}
 	});
 
 	vdom::mount(root);
