@@ -65,7 +65,7 @@ impl Element {
 		}
 	}
 
-	#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used, clippy::redundant_closure)]
+	#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used, clippy::redundant_closure, unused_must_use)]
 	pub fn render(&mut self) -> DomNode {
 		if let Tag::text_node(s) = &self.tag {
 			return document().create_text_node(s).into();
@@ -78,7 +78,7 @@ impl Element {
 		}
 
 		for (name, value) in self.attributes.iter() {
-			element.set_attribute(name, value).unwrap();
+			element.set_attribute(name, value);
 		}
 
 		element.into()
