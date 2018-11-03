@@ -5,18 +5,25 @@ use std::{
 	ops::{Deref, DerefMut},
 };
 use crate::vdom::Element;
+use stdweb::{
+	__internal_console_unsafe,
+	__js_raw_asm,
+	_js_impl,
+	console,
+	js,
+};
 
 #[allow(missing_debug_implementations)]
 pub struct State {
 	pub render: Box<dyn Fn() -> Element>,
-	pub dirty: bool,
+	pub dirty: RefCell<bool>,
 	pub vdom: Element,
 }
 
 thread_local! {
 	pub static STATE: RefCell<State> = RefCell::new(State {
 		render: Box::new(|| unreachable!()),
-		dirty: false,
+		dirty: RefCell::new(true),
 		vdom: Element::new(crate::primitives::Tag::div, children!["Loading..."], attrs![], events![]),
 	});
 }
@@ -33,11 +40,12 @@ impl<T> Tracked<T> {
 	}
 
 	pub fn update<'a>(&'a self) -> impl DerefMut<Target=T> + 'a {
-		STATE.with(|s| {
-			let mut state = s.borrow_mut();
-			if !state.dirty {
-				state.dirty = true;
-				let _ = stdweb::web::window().request_animation_frame(crate::vdom::update);
+		STATE.with(|state| {
+			let state = state.borrow();
+			let mut dirty = state.dirty.borrow_mut();
+			if !*dirty {
+				*dirty = true;
+				stdweb::web::window().request_animation_frame(crate::vdom::update);
 			}
 		});
 		self.0.borrow_mut()

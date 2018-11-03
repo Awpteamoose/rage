@@ -91,7 +91,7 @@ impl Element {
 		// if already attached - just return
 		let event_handlers = if let Some(x) = self.event_handlers.take() { x } else { return; };
 		let element = self.dom_reference.as_ref().unwrap();
-		let _ = std::mem::replace(
+		std::mem::replace(
 			&mut self.listener_handles,
 			event_handlers
 				.into_iter()
@@ -162,7 +162,7 @@ fn fix_inputs(node: &DomNode, elem: &Element) {
 }
 
 // TODO: review, rewrite, avoid unwraps, avoid clones, avoid retardation
-#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used)]
+#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used, unused_must_use)]
 pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Option<&mut Element>) {
 	match (old, new) {
 		(None, Some(new)) => {
@@ -184,7 +184,7 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 		},
 		(Some(old), None) => {
 			old.detach_handlers();
-			let _ = parent_dom.remove_child(old.dom_node()).unwrap();
+			parent_dom.remove_child(old.dom_node());
 		},
 		(Some(old), Some(new)) => {
 			old.detach_handlers();
@@ -211,7 +211,7 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 			if (old.tag != new.tag) || matches!(new.tag, Tag::text_node(_)) {
 				let new_dom_node = new.dom_node();
 				let old_dom_node = old.dom_node();
-				let _ = parent_dom.replace_child(new_dom_node, old_dom_node).unwrap();
+				parent_dom.replace_child(new_dom_node, old_dom_node);
 				new.attach_handlers();
 				fix_inputs(&new.dom_reference.as_ref().unwrap(), &new);
 				return;
@@ -230,11 +230,11 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 							if let Some(old_value) = old.attributes.get(name) {
 								// changed
 								if old_value != new_value {
-									new_dom.set_attribute(name, new_value).unwrap();
+									new_dom.set_attribute(name, new_value);
 								}
 							} else {
 								// wasn't present
-								new_dom.set_attribute(name, new_value).unwrap();
+								new_dom.set_attribute(name, new_value);
 							}
 						},
 						// removed in new
@@ -258,15 +258,13 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 pub fn update(_: f64) {
 	// console!(log, "UPDATE START");
 	STATE.with(|lock| {
+		*lock.borrow().dirty.borrow_mut() = false;
+		let mut new_vdom = (lock.borrow().render)();
 		let mut meta = lock.borrow_mut();
-
-		let mut new_vdom = (meta.render)();
 
 		let element = document().get_element_by_id("__rage__").unwrap();
 		patch_tree(&element, Some(&mut meta.vdom), Some(&mut new_vdom));
 		meta.vdom = new_vdom;
-
-		meta.dirty = false;
 	});
 	// console!(log, "UPDATE END");
 }
@@ -281,7 +279,7 @@ pub fn mount<F: Fn() -> Element + 'static>(mount: F) {
 			.set_attribute("id", "__rage__")
 			.expect("can't set attribute");
 		document().body().unwrap().append_child(dom_node);
-		let _ = std::mem::replace(&mut meta.render, Box::new(mount));
+		std::mem::replace(&mut meta.render, Box::new(mount));
 	});
 	// document
 	update(0.);
