@@ -18,11 +18,20 @@ use stdweb::{
 };
 use strum::AsStaticRef;
 
-#[derive(Default)]
-pub struct Callbacks {
-	pub id: u32,
-	pub handlers: HashMap<u32, Vec<EventHandler>>,
+macro_rules! cb_map {
+	($callbacks: ident, skip, $($name: ident),+$(,)*) => {
+		#[derive(Default)]
+		#[allow(dead_code, non_snake_case, missing_debug_implementation)]
+		pub struct $callbacks {
+			pub id: u32,
+			$(
+				pub $name: HashMap<u32, Box<dyn Fn(&stdweb::web::event::$name)>>,
+			)+
+		}
+	};
 }
+
+__event_idents![cb_map, Callbacks, skip];
 
 thread_local! {
 	pub static CALLBACKS: RefCell<Callbacks> = RefCell::new(Callbacks::default());
@@ -35,6 +44,7 @@ pub struct Element {
 	pub children: Vec<Element>,
 	pub attributes: HashMap<String, String>,
 	pub event_handlers: Option<Vec<EventHandler>>,
+	pub callback_id: u32,
 }
 
 impl PartialEq for Element {
@@ -72,6 +82,12 @@ impl Element {
 			children,
 			attributes,
 			event_handlers: Some(event_handlers),
+			callback_id: CALLBACKS.with(move |c| {
+				let mut callbacks = c.borrow_mut();
+				let id = callbacks.id;
+				callbacks.id += 1;
+				id
+			}),
 		}
 	}
 
@@ -91,6 +107,8 @@ impl Element {
 			element.set_attribute(name, value);
 		}
 
+		js!(@{&element}.__rage_event_callback = @{self.callback_id});
+
 		element.into()
 	}
 
@@ -103,11 +121,17 @@ impl Element {
 		if event_handlers.is_empty() { return; };
 		CALLBACKS.with(move |c| {
 			let mut callbacks = c.borrow_mut();
-			let id = callbacks.id;
-			callbacks.id += 1;
-			let element = self.dom_reference.as_ref().unwrap();
-			js!(@{&element}.__rage_event_callback = @{id});
-			let _ = callbacks.handlers.insert(id, event_handlers);
+			for handler in event_handlers {
+				macro_rules! handle {
+					(skip, skip, $($name: ident),+$(,)*) => {
+						match handler {
+							$(EventHandler::$name(handler) => { let _ = callbacks.$name.insert(self.callback_id, handler); },)+
+						}
+					};
+				}
+
+				__event_idents!(handle, skip, skip)
+			}
 		});
 	}
 
@@ -282,11 +306,8 @@ pub fn mount<F: Fn() -> Element + 'static>(mount: F) {
 					let target = e.target().unwrap();
 					if let Ok(id) = js!(return @{&target}.__rage_event_callback;).try_into() {
 						CALLBACKS.with(|c| {
-							let callbacks = c.borrow();
-							for handler in &callbacks.handlers[&id] {
-								if let EventHandler::$name(f) = handler {
-									return f(&e);
-								}
+							if let Some(f) = c.borrow().$name.get(&id) {
+								return f(&e);
 							}
 						})
 					}

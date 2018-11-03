@@ -173,7 +173,7 @@ impl Default for State {
 	fn default() -> Self {
 		Self {
 			running: true,
-			grid_size: 100,
+			grid_size: 75,
 			rng: {
 				let mut bytes: [u8; 16] = [0; 16];
 				let seed: [u8; 8] = unsafe { std::mem::transmute(stdweb::web::Date::new().get_time()) };
