@@ -85,7 +85,7 @@ impl Element {
 			callback_id: CALLBACKS.with(move |c| {
 				let mut callbacks = c.borrow_mut();
 				let id = callbacks.id;
-				callbacks.id += 1;
+				callbacks.id = callbacks.id.overflowing_add(1).0;
 				id
 			}),
 		}
