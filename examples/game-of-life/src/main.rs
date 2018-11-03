@@ -172,8 +172,8 @@ pub struct State {
 impl Default for State {
 	fn default() -> Self {
 		Self {
-			running: false,
-			grid_size: 75,
+			running: true,
+			grid_size: 100,
 			rng: {
 				let mut bytes: [u8; 16] = [0; 16];
 				let seed: [u8; 8] = unsafe { std::mem::transmute(stdweb::web::Date::new().get_time()) };
@@ -205,7 +205,7 @@ fn cells(state: &Tracked<State>) -> Vec<Element> {
 					)),
 				],
 				events![
-					move |_: event::ClickEvent| CELLS.with(|c| {
+					move |_: &event::ClickEvent| CELLS.with(|c| {
 						let mut cells = c.update();
 						console!(log, "click start");
 
@@ -229,7 +229,7 @@ fn start_button(state: &Tracked<State>) -> Element {
 			"value" => if state.view().running { "stop" } else { "start" },
 		],
 		events![
-			enclose!{(state) move |_: event::ClickEvent| {
+			enclose!{(state) move |_: &event::ClickEvent| {
 				let mut state = state.update();
 				state.running = !state.running;
 			}},
@@ -245,7 +245,7 @@ fn randomize_button(state: &Tracked<State>) -> Element {
 			"value" => "randomize",
 		],
 		events![
-			enclose!{(state) move |_: event::ClickEvent| CELLS.with(|c| {
+			enclose!{(state) move |_: &event::ClickEvent| CELLS.with(|c| {
 				let mut cells = c.update();
 				let state = state.update();
 				let grid_size = state.grid_size;
@@ -272,7 +272,7 @@ fn clear_button(state: &Tracked<State>) -> Element {
 			"value" => "clear",
 		],
 		events![
-			move |_: event::ClickEvent| CELLS.with(|c| c.update().clear()),
+			move |_: &event::ClickEvent| CELLS.with(|c| c.update().clear()),
 		],
 	)
 }
@@ -292,9 +292,9 @@ fn size(state: &Tracked<State>) -> Element {
 					"value" => state.view().grid_size.to_string(),
 				],
 				events![
-					enclose!{(state) move |e: event::InputEvent| {
+					enclose!{(state) move |e: &event::InputEvent| {
 						let mut state = state.update();
-						let value = stdweb::web::html_element::InputElement::try_from(e.current_target().unwrap()).unwrap().raw_value();
+						let value = stdweb::web::html_element::InputElement::try_from(e.target().unwrap()).unwrap().raw_value();
 						state.grid_size = value.parse().unwrap();
 					}},
 				],
@@ -386,23 +386,23 @@ fn main() {
 	}));
 	rage::stdweb::web::document().set_title("Game of Life");
 
-	// CELLS.with(|c| {
-	//     let mut cells = c.update();
-	//     STATE.with(|state| {
-	//         let state = state.update();
-	//         let grid_size = state.grid_size;
+	CELLS.with(|c| {
+		let mut cells = c.update();
+		STATE.with(|state| {
+			let state = state.update();
+			let grid_size = state.grid_size;
 
-	//         for x in 0..grid_size {
-	//             for y in 0..grid_size {
-	//                 if state.rng.borrow_mut().gen_bool(0.5) {
-	//                     let _ = cells.insert(ToroidalPoint(x, y));
-	//                 } else {
-	//                     let _ = cells.remove(&ToroidalPoint(x, y));
-	//                 }
-	//             }
-	//         }
-	//     });
-	// });
+			for x in 0..grid_size {
+				for y in 0..grid_size {
+					if state.rng.borrow_mut().gen_bool(0.5) {
+						let _ = cells.insert(ToroidalPoint(x, y));
+					} else {
+						let _ = cells.remove(&ToroidalPoint(x, y));
+					}
+				}
+			}
+		});
+	});
 
 	vdom::mount(root);
 }

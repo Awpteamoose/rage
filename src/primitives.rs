@@ -34,11 +34,11 @@ macro_rules! __events {
 	(skip, skip, $($name: ident),+$(,)*) => {
 		#[allow(missing_debug_implementations, clippy::pub_enum_variant_names)]
 		pub enum EventHandler {
-			$($name(Box<dyn Fn(event::$name)>),)+
+			$($name(Box<dyn Fn(&event::$name)>),)+
 		}
 
 		$(
-			impl Into<EventHandler> for Box<dyn Fn(event::$name)> {
+			impl Into<EventHandler> for Box<dyn Fn(&event::$name)> {
 				fn into(self) -> EventHandler {
 					$crate::primitives::EventHandler::$name(self)
 				}
@@ -48,18 +48,6 @@ macro_rules! __events {
 }
 
 __event_idents![__events, skip, skip];
-
-macro_rules! __event_listeners {
-	($handler: expr, $element: expr, $($name: ident),+$(,)*) => {
-		match $handler {
-			$(
-				$crate::primitives::EventHandler::$name(f) => {
-					$element.add_event_listener(move |e: stdweb::web::event::$name| f(e))
-				},
-			)+
-		}
-	};
-}
 
 macro_rules! __primitives {
 	($($name: ident),+$(,)*) => {

@@ -4,17 +4,29 @@ use crate::{
 };
 use matches::matches;
 use std::collections::{HashMap, HashSet};
+use std::cell::RefCell;
 use stdweb::{
+	traits::*,
 	__internal_console_unsafe,
 	__js_raw_asm,
 	_js_impl,
 	console,
 	js,
 	traits::*,
-	unstable::TryFrom,
+	unstable::{TryFrom, TryInto},
 	web::{document, Element as DomElement, Node as DomNode},
 };
 use strum::AsStaticRef;
+
+#[derive(Default)]
+pub struct Callbacks {
+	pub id: u32,
+	pub handlers: HashMap<u32, Vec<EventHandler>>,
+}
+
+thread_local! {
+	pub static CALLBACKS: RefCell<Callbacks> = RefCell::new(Callbacks::default());
+}
 
 pub struct Element {
 	pub dom_reference: Option<DomNode>,
@@ -23,7 +35,6 @@ pub struct Element {
 	pub children: Vec<Element>,
 	pub attributes: HashMap<String, String>,
 	pub event_handlers: Option<Vec<EventHandler>>,
-	pub listener_handles: Vec<stdweb::web::EventListenerHandle>,
 }
 
 impl PartialEq for Element {
@@ -61,7 +72,6 @@ impl Element {
 			children,
 			attributes,
 			event_handlers: Some(event_handlers),
-			listener_handles: Vec::new(),
 		}
 	}
 
@@ -90,25 +100,15 @@ impl Element {
 		}
 		// if already attached - just return
 		let event_handlers = if let Some(x) = self.event_handlers.take() { x } else { return; };
-		let element = self.dom_reference.as_ref().unwrap();
-		std::mem::replace(
-			&mut self.listener_handles,
-			event_handlers
-				.into_iter()
-				.map(|handler| __event_idents![__event_listeners, handler, element])
-				.collect(),
-		);
-	}
-
-	pub fn detach_handlers(&mut self) {
-		for child in &mut self.children {
-			child.detach_handlers();
-		}
-		if self.listener_handles.is_empty() { return; }
-		let listener_handles = std::mem::replace(&mut self.listener_handles, vec![]);
-		for handle in listener_handles {
-			handle.remove();
-		}
+		if event_handlers.is_empty() { return; };
+		CALLBACKS.with(move |c| {
+			let mut callbacks = c.borrow_mut();
+			let id = callbacks.id;
+			callbacks.id += 1;
+			let element = self.dom_reference.as_ref().unwrap();
+			js!(@{&element}.__rage_event_callback = @{id});
+			let _ = callbacks.handlers.insert(id, event_handlers);
+		});
 	}
 
 	pub fn dom_node(&mut self) -> &DomNode {
@@ -183,12 +183,9 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 			fix_inputs(&new.dom_reference.as_ref().unwrap(), &new);
 		},
 		(Some(old), None) => {
-			old.detach_handlers();
 			parent_dom.remove_child(old.dom_node());
 		},
 		(Some(old), Some(new)) => {
-			old.detach_handlers();
-
 			if old == new {
 				new.dom_reference = old.dom_reference.take();
 				let children_number = new.children.len();
@@ -259,6 +256,7 @@ pub fn update(_: f64) {
 	// console!(log, "UPDATE START");
 	STATE.with(|lock| {
 		*lock.borrow().dirty.borrow_mut() = false;
+		CALLBACKS.with(|c| *c.borrow_mut() = Callbacks::default());
 		let mut new_vdom = (lock.borrow().render)();
 		let mut meta = lock.borrow_mut();
 
@@ -269,19 +267,37 @@ pub fn update(_: f64) {
 	// console!(log, "UPDATE END");
 }
 
-#[allow(clippy::option_unwrap_used)]
+#[allow(clippy::option_unwrap_used, unused_must_use)]
 pub fn mount<F: Fn() -> Element + 'static>(mount: F) {
 	STATE.with(|lock| {
 		let mut meta = lock.borrow_mut();
 		let dom_node = meta.vdom.dom_node();
 		DomElement::try_from(dom_node.as_ref())
 			.expect("bad node")
-			.set_attribute("id", "__rage__")
-			.expect("can't set attribute");
+			.set_attribute("id", "__rage__");
+
+		macro_rules! attach_cb {
+			(skip, skip, $($name: ident),+$(,)*) => {
+				$(document().add_event_listener(move |e: stdweb::web::event::$name| {
+					let target = e.target().unwrap();
+					if let Ok(id) = js!(return @{&target}.__rage_event_callback;).try_into() {
+						CALLBACKS.with(|c| {
+							let callbacks = c.borrow();
+							for handler in &callbacks.handlers[&id] {
+								if let EventHandler::$name(f) = handler {
+									return f(&e);
+								}
+							}
+						})
+					}
+				});)+
+			};
+		}
+
+		__event_idents![attach_cb, skip, skip];
+
 		document().body().unwrap().append_child(dom_node);
 		std::mem::replace(&mut meta.render, Box::new(mount));
 	});
-	// document
 	update(0.);
-	// let _ = stdweb::web::window().request_animation_frame(update);
 }

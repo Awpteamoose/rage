@@ -82,7 +82,7 @@ macro_rules! events {
 		std::vec![]
 	};
 	($($e: expr),+$(,)*) => {
-		vec![$(<Box<dyn Fn(_)>>::into(Box::new($e)),)+]
+		vec![$(<Box<dyn Fn(&_)>>::into(Box::new($e)),)+]
 	};
 }
 
