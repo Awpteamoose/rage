@@ -35,11 +35,13 @@ fn hash(s: &str) -> String {
 pub fn styled(css: &str) -> String {
 	let class_hash = hash(&css);
 	let class = format!("styled{}", &class_hash);
+	let tampered_css = css.replace('&', &class);
 
 	STATE.with(|s| {
 		let mut state = s.borrow_mut();
 		if !state.inserted_rules.contains(&class) {
-			let style = format!(".{} {{ {} }}\n", &class, css);
+			// let style = format!(".{} {{ {} }}\n", &class, tampered_css);
+			let style = format!("{}\n", tampered_css);
 			let _ = state.inserted_rules.insert(class.clone());
 			state.style_element.append_html(&style);
 		}
