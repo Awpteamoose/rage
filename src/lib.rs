@@ -62,24 +62,26 @@ macro_rules! children {
 		vec![]
 	};
 	($($e: expr),+$(,)*) => {
-		std::vec![$($e.into(),)+]
+		vec![$($e.into(),)+]
 	};
 }
 
 #[macro_export]
 macro_rules! attrs {
-	() => {
-		maplit::hashmap![]
-	};
-	($($k: expr => $v: expr),+$(,)*) => {
+	() => {{
+		use $crate::maplit::hashmap;
+		hashmap![]
+	}};
+	($($k: expr => $v: expr),+$(,)*) => {{
+		use $crate::maplit::hashmap;
 		hashmap![$($k.into() => $v.into(),)+]
-	};
+	}};
 }
 
 #[macro_export]
 macro_rules! events {
 	() => {
-		std::vec![]
+		vec![]
 	};
 	($($e: expr),+$(,)*) => {
 		vec![$(<Box<dyn Fn(&_)>>::into(Box::new($e)),)+]
@@ -105,3 +107,4 @@ pub use self::{
 	styled::{styled, append_css},
 };
 pub use stdweb;
+pub use maplit;

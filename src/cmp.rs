@@ -1,4 +1,10 @@
-use crate::vdom::Element;
+use crate::{
+	vdom::Element,
+	primitives::{
+		XmlElement,
+		html::Tag as HtmlTag,
+	},
+};
 use maplit::*;
 use std::{
 	cell::RefCell,
@@ -18,7 +24,7 @@ thread_local! {
 	pub static STATE: RefCell<State> = RefCell::new(State {
 		render: Box::new(|| unreachable!()),
 		dirty: RefCell::new(true),
-		vdom: Element::new(crate::primitives::Tag::div, children!["Loading..."], attrs![], events![]),
+		vdom: Element::new(XmlElement::Html(HtmlTag::div), children!["Loading..."], attrs![], events![]),
 	});
 }
 

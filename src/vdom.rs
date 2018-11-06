@@ -1,6 +1,6 @@
 use crate::{
 	cmp::{State, STATE},
-	primitives::{EventHandler, Tag},
+	primitives::{EventHandler, XmlElement, html::Tag as HtmlTag},
 };
 use matches::matches;
 use std::{
@@ -41,7 +41,7 @@ thread_local! {
 pub struct Element {
 	pub dom_reference: Option<DomNode>,
 
-	pub tag: Tag,
+	pub xml_element: XmlElement,
 	pub children: Vec<Element>,
 	pub attributes: HashMap<String, String>,
 	pub event_handlers: Option<Vec<EventHandler>>,
@@ -50,36 +50,36 @@ pub struct Element {
 
 impl PartialEq for Element {
 	fn eq(&self, other: &Self) -> bool {
-		self.tag == other.tag && self.children == other.children && self.attributes == other.attributes
+		self.xml_element == other.xml_element && self.children == other.children && self.attributes == other.attributes
 	}
 }
 
 impl Eq for Element {}
 
-impl std::fmt::Debug for Element {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(
-			f,
-			"<{tag}{attributes}>{children}</div>",
-			tag = self.tag.as_static(),
-			attributes = self.attributes.iter().fold(String::new(), |acc, (key, value)| acc + &format!(
-				r#" "{key}"="{value}""#,
-				key = key,
-				value = value
-			)),
-			children = self
-				.children
-				.iter()
-				.fold(String::new(), |acc, child| acc + &format!("{:?}\n", child)),
-		)
-	}
-}
+// impl std::fmt::Debug for Element {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         write!(
+//             f,
+//             "<{tag}{attributes}>{children}</div>",
+//             tag = self.tag.as_static(),
+//             attributes = self.attributes.iter().fold(String::new(), |acc, (key, value)| acc + &format!(
+//                 r#" "{key}"="{value}""#,
+//                 key = key,
+//                 value = value
+//             )),
+//             children = self
+//                 .children
+//                 .iter()
+//                 .fold(String::new(), |acc, child| acc + &format!("{:?}\n", child)),
+//         )
+//     }
+// }
 
 impl Element {
-	pub fn new(tag: Tag, children: Vec<Self>, attributes: HashMap<String, String>, event_handlers: Vec<EventHandler>) -> Self {
+	pub fn new(xml_element: XmlElement, children: Vec<Self>, attributes: HashMap<String, String>, event_handlers: Vec<EventHandler>) -> Self {
 		Self {
 			dom_reference: None,
-			tag,
+			xml_element,
 			children,
 			attributes,
 			event_handlers: Some(event_handlers),
@@ -94,11 +94,11 @@ impl Element {
 
 	#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used, clippy::redundant_closure, unused_must_use)]
 	pub fn render(&mut self) -> DomNode {
-		if let Tag::text_node(s) = &self.tag {
-			return document().create_text_node(s).into();
-		}
-
-		let element = document().create_element(self.tag.as_static()).unwrap();
+		let element = match &self.xml_element {
+			XmlElement::TextNode(s) => return document().create_text_node(s).into(),
+			XmlElement::Html(tag) => document().create_element(tag.as_static()).unwrap(),
+			XmlElement::Svg(tag) => document().create_element_ns("http://www.w3.org/2000/svg", tag.as_static()).unwrap(),
+		};
 
 		for child in &mut self.children {
 			element.append_child(child.dom_node());
@@ -147,7 +147,7 @@ impl Element {
 
 impl<S: Into<String>> From<S> for Element {
 	fn from(s: S) -> Self {
-		Self::new(Tag::text_node(s.into()), Vec::new(), HashMap::new(), Vec::new())
+		Self::new(XmlElement::TextNode(s.into()), Vec::new(), HashMap::new(), Vec::new())
 	}
 }
 
@@ -159,8 +159,8 @@ fn fix_inputs(node: &DomNode, elem: &Element) {
 	}
 
 	// inputs are retarded
-	match elem.tag {
-		Tag::input => {
+	match elem.xml_element {
+		XmlElement::Html(HtmlTag::input) => {
 			if let Some(input_type) = elem.attributes.get("type") {
 				match input_type as &str {
 					"checkbox" | "radio" => {
@@ -176,7 +176,7 @@ fn fix_inputs(node: &DomNode, elem: &Element) {
 				}
 			}
 		},
-		Tag::select | Tag::textarea => {
+		XmlElement::Html(HtmlTag::select) | XmlElement::Html(HtmlTag::textarea) => {
 			if let Some(value) = elem.attributes.get("value") {
 				js!(@{node}.value = @{value});
 			}
@@ -232,7 +232,7 @@ pub fn patch_tree(parent_dom: &DomElement, old: Option<&mut Element>, new: Optio
 				return;
 			}
 
-			if (old.tag != new.tag) || matches!(new.tag, Tag::text_node(_)) {
+			if (old.xml_element != new.xml_element) || matches!(new.xml_element, XmlElement::TextNode(_)) {
 				let new_dom_node = new.dom_node();
 				let old_dom_node = old.dom_node();
 				parent_dom.replace_child(new_dom_node, old_dom_node);
