@@ -101,6 +101,27 @@ use rage::{
 use rand::prelude::*;
 use std::{cell::RefCell, collections::HashSet, ops::Add};
 
+mod styles {
+	use rage::styled;
+
+	lazy_static::lazy_static! {
+		pub static ref ALIVE: String = styled("
+			.& {
+				border: 1px solid black;
+				background-color: black;
+				box-sizing: content-box;
+			}
+		");
+		pub static ref DEAD: String = styled("
+			.& {
+				border: 1px solid black;
+				background-color: white;
+				box-sizing: content-box;
+			}
+		");
+	}
+}
+
 thread_local! {
 	pub static STATE: Tracked<State> = Tracked::new(State::default());
 }
@@ -194,13 +215,7 @@ fn cells(state: &Tracked<State>) -> Vec<Element> {
 			divs.push(primitives::div(
 				children![],
 				attrs![
-					"class" => styled(&format!(r#"
-						border: 1px solid black;
-						background-color: {color};
-						box-sizing: content-box;
-					"#,
-						color = if state.view().cells.get(&ToroidalPoint(x, y)).is_some() { "black" } else { "white" }
-					)),
+					"class" => if state.view().cells.get(&ToroidalPoint(x, y)).is_some() { &styles::ALIVE as &str } else { &styles::DEAD as &str },
 				],
 				events![
 					enclose!{(state) move |_: &event::ClickEvent| {
@@ -307,8 +322,10 @@ fn container(state: &Tracked<State>) -> Element {
 		cells(state),
 		attrs![
 			"class" => styled(r#"
-				user-select: none;
-				display: grid;
+				.& {
+					user-select: none;
+					display: grid;
+				}
 			"#),
 			"style" => format!(r#"
 				grid-template-columns: repeat({grid_size}, {cell_size}px);
