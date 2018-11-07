@@ -41,7 +41,7 @@ pub fn styled(css: &str) -> String {
 		let mut state = s.borrow_mut();
 		if !state.inserted_rules.contains(&class) {
 			// let style = format!(".{} {{ {} }}\n", &class, tampered_css);
-			let style = format!("{}\n", tampered_css);
+			let style = tampered_css.lines().fold(String::new(), |acc, line| acc + line.trim() + "\n");
 			let _ = state.inserted_rules.insert(class.clone());
 			state.style_element.append_html(&style);
 		}
@@ -52,5 +52,5 @@ pub fn styled(css: &str) -> String {
 
 #[allow(unused_must_use)]
 pub fn append_css(css: &str) {
-	STATE.with(|state| state.borrow().style_element.append_html(&css));
+	STATE.with(|state| state.borrow().style_element.append_html(&css.lines().fold(String::new(), |acc, line| acc + line.trim() + "\n")));
 }

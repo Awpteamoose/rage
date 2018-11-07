@@ -55,8 +55,8 @@ pub enum XmlElement {
 	Svg(svg::Tag),
 }
 
-pub fn raw(s: String) -> Element {
-	Element::new(XmlElement::Raw(s), children![], attrs![], events![])
+pub fn raw(s: String, attributes: HashMap<String, String>, event_handlers: Vec<EventHandler>) -> Element {
+	Element::new(XmlElement::Raw(s), children![], attributes, event_handlers)
 }
 
 __event_idents![__events, skip, skip];
