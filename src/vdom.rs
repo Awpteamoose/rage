@@ -95,6 +95,7 @@ impl Element {
 	#[allow(clippy::option_unwrap_used, clippy::result_unwrap_used, clippy::redundant_closure, unused_must_use)]
 	pub fn render(&mut self) -> DomNode {
 		let element = match &self.xml_element {
+			XmlElement::Raw(s) => return stdweb::web::Node::from_html(s.trim()).unwrap(),
 			XmlElement::TextNode(s) => return document().create_text_node(s).into(),
 			XmlElement::Html(tag) => document().create_element(tag.as_static()).unwrap(),
 			XmlElement::Svg(tag) => document().create_element_ns("http://www.w3.org/2000/svg", tag.as_static()).unwrap(),

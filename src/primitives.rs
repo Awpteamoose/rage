@@ -49,9 +49,14 @@ macro_rules! __events {
 
 #[derive(Debug, AsStaticStr, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum XmlElement {
+	Raw(String),
 	TextNode(String),
 	Html(html::Tag),
 	Svg(svg::Tag),
+}
+
+pub fn raw(s: String) -> Element {
+	Element::new(XmlElement::Raw(s), children![], attrs![], events![])
 }
 
 __event_idents![__events, skip, skip];
