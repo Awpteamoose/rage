@@ -22,7 +22,7 @@ macro_rules! __event_idents {
 		PointerLockErrorEvent,  PointerMoveEvent,          PointerOutEvent,
 		PointerOverEvent,       PointerUpEvent,            PopStateEvent,
 		ProgressAbortEvent,     ProgressErrorEvent,        ProgressEvent,
-		ProgressLoadEvent,      ReadyStateChangeEvent,     ResizeEvent,
+		ProgressLoadEvent,      ReadyStateChangeEvent,     /*ResizeEvent,*/
 		ResourceAbortEvent,     ResourceErrorEvent,        ResourceLoadEvent,
 		ScrollEvent,            SelectionChangeEvent,      SocketCloseEvent,
 		SocketErrorEvent,       SocketMessageEvent,        SocketOpenEvent,
