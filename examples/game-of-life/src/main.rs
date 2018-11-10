@@ -92,7 +92,7 @@ extern crate rage;
 use maplit::*;
 use rage::{
 	cmp::*,
-	primitives,
+	primitives::html as primitives,
 	stdweb::{self, __internal_console_unsafe, __js_raw_asm, _js_impl, console, js, traits::*, unstable::TryFrom, web::event},
 	styled,
 	vdom::{self, Element},
