@@ -6,26 +6,26 @@ use strum_macros::AsStaticStr;
 // TODO: I could skip the Event bit, but concat_idents! doesn't work properly ¯\_(ツ)_/¯
 macro_rules! __event_idents {
 	($m: ident, $arg1: ident, $arg2: ident) => {$m![$arg1, $arg2,
-		AuxClickEvent,          BlurEvent,                 ChangeEvent,
-		ClickEvent,             ContextMenuEvent,          DoubleClickEvent,
-		DragDropEvent,          DragEndEvent,              DragEnterEvent,
-		DragEvent,              DragExitEvent,             DragLeaveEvent,
-		DragOverEvent,          DragStartEvent,            FocusEvent,
-		GamepadConnectedEvent,  GamepadDisconnectedEvent,  GotPointerCaptureEvent,
-		HashChangeEvent,        InputEvent,                KeyDownEvent,
-		KeyPressEvent,          KeyUpEvent,                LoadEndEvent,
-		LoadStartEvent,         LostPointerCaptureEvent,   MouseDownEvent,
-		MouseEnterEvent,        MouseLeaveEvent,           MouseMoveEvent,
-		MouseOutEvent,          MouseOverEvent,            MouseUpEvent,
-		MouseWheelEvent,        PointerCancelEvent,        PointerDownEvent,
-		PointerEnterEvent,      PointerLeaveEvent,         PointerLockChangeEvent,
-		PointerLockErrorEvent,  PointerMoveEvent,          PointerOutEvent,
-		PointerOverEvent,       PointerUpEvent,            PopStateEvent,
-		ProgressAbortEvent,     ProgressErrorEvent,        ProgressEvent,
-		ProgressLoadEvent,      ReadyStateChangeEvent,     /*ResizeEvent,*/
-		ResourceAbortEvent,     ResourceErrorEvent,        ResourceLoadEvent,
-		ScrollEvent,            SelectionChangeEvent,      SocketCloseEvent,
-		SocketErrorEvent,       SocketMessageEvent,        SocketOpenEvent,
+		AuxClickEvent, BlurEvent, ChangeEvent,
+		ClickEvent, ContextMenuEvent, DoubleClickEvent,
+		DragDropEvent, DragEndEvent, DragEnterEvent,
+		DragEvent, DragExitEvent, DragLeaveEvent,
+		DragOverEvent, DragStartEvent, FocusEvent,
+		GamepadConnectedEvent, GamepadDisconnectedEvent, GotPointerCaptureEvent,
+		HashChangeEvent, InputEvent, KeyDownEvent,
+		KeyPressEvent, KeyUpEvent, LoadEndEvent,
+		LoadStartEvent, LostPointerCaptureEvent, MouseDownEvent,
+		MouseEnterEvent, MouseLeaveEvent, MouseMoveEvent,
+		MouseOutEvent, MouseOverEvent, MouseUpEvent,
+		MouseWheelEvent, PointerCancelEvent, PointerDownEvent,
+		PointerEnterEvent, PointerLeaveEvent, PointerLockChangeEvent,
+		PointerLockErrorEvent, PointerMoveEvent, PointerOutEvent,
+		PointerOverEvent, PointerUpEvent, PopStateEvent,
+		/*ProgressAbortEvent,*/ /*ProgressErrorEvent,*/ /*ProgressEvent,*/
+		/*ProgressLoadEvent,*/ /*ReadyStateChangeEvent,*/ /*ResizeEvent,*/
+		/*ResourceAbortEvent,*/ /*ResourceErrorEvent,*/ /*ResourceLoadEvent,*/
+		ScrollEvent, SelectionChangeEvent, SocketCloseEvent,
+		SocketErrorEvent, SocketMessageEvent, SocketOpenEvent,
 		SubmitEvent,
 	];};
 }

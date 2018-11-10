@@ -15,7 +15,7 @@ use stdweb::{
 	js,
 	traits::*,
 	unstable::{TryFrom, TryInto},
-	web::{document, Element as DomElement, Node as DomNode},
+	web::{document, Element as DomElement, Node as DomNode, event::ConcreteEvent},
 };
 use strum::AsStaticRef;
 
@@ -308,22 +308,25 @@ pub fn mount<F: Fn() -> Element + 'static>(mount: F) {
 			.set_attribute("id", "__rage__");
 
 		macro_rules! attach_cb {
-			(skip, skip, $($name: ident),+$(,)*) => {
-				$(document().add_event_listener(move |e: stdweb::web::event::$name| {
-					let ids: Vec<u32> = js!{return @{&e}.composedPath().reduce((acc, node) => {
-						const id = node.__rage_event_callback;
-						if (id) acc.push(id);
-						return acc;
-					}, []);}.try_into().unwrap();
-					CALLBACKS.with(move |c| {
-						for id in ids {
-							if let Some(f) = c.borrow().$name.get(&id) {
-								return f(&e);
+			(skip, skip, $($name: ident),+$(,)*) => {{
+				$(
+					let cb = move |e: stdweb::web::event::$name| {
+						let ids: Vec<u32> = js!{return @{&e}.composedPath().reduce((acc, node) => {
+							const id = node.__rage_event_callback;
+							if (id) acc.push(id);
+							return acc;
+						}, []);}.try_into().unwrap();
+						CALLBACKS.with(move |c| {
+							for id in ids {
+								if let Some(f) = c.borrow().$name.get(&id) {
+									return f(&e);
+								}
 							}
-						}
-					});
-				});)+
-			};
+						});
+					};
+					js!(document.addEventListener(@{stdweb::web::event::$name::EVENT_TYPE}, @{cb}, { capture: true }));
+				)+
+			}};
 		}
 
 		__event_idents![attach_cb, skip, skip];
