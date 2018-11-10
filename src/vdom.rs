@@ -168,7 +168,7 @@ fn fix_inputs(node: &DomNode, elem: &Element) {
 						let checked = elem.attributes.get("checked").is_some();
 						js!(@{node}.checked = @{checked});
 					},
-					"text" => {
+					"text" | "password" => {
 						if let Some(value) = elem.attributes.get("value") {
 							js!(@{node}.value = @{value});
 						}
