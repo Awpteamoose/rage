@@ -1,6 +1,6 @@
 [package]
 name = "rage"
-version = "0.0.15"
+version = "0.0.16"
 edition = "2018"
 description = "web shit for rust age, heavy wip"
 license = "CC0-1.0"
