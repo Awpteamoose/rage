@@ -13,8 +13,8 @@ macro_rules! __event_idents {
 		DragOverEvent, DragStartEvent, FocusEvent,
 		GamepadConnectedEvent, GamepadDisconnectedEvent, GotPointerCaptureEvent,
 		HashChangeEvent, InputEvent, KeyDownEvent,
-		KeyPressEvent, KeyUpEvent, LoadEndEvent,
-		LoadStartEvent, LostPointerCaptureEvent, MouseDownEvent,
+		KeyPressEvent, KeyUpEvent, /*LoadEndEvent,*/
+		/*LoadStartEvent,*/ LostPointerCaptureEvent, MouseDownEvent,
 		MouseEnterEvent, MouseLeaveEvent, MouseMoveEvent,
 		MouseOutEvent, MouseOverEvent, MouseUpEvent,
 		MouseWheelEvent, PointerCancelEvent, PointerDownEvent,
