@@ -13,6 +13,6 @@ matches = "0.1"
 maplit = "1"
 serde = "1"
 serde_derive = "1"
-stdweb = { version = "0.4.10", features = ["experimental_features_which_may_break_on_minor_version_bumps", "futures-support"] }
-strum = "0.11"
-strum_macros = "0.11"
+stdweb = { version = "0.4.17", features = ["experimental_features_which_may_break_on_minor_version_bumps", "futures-support"] }
+strum = "0.15"
+strum_macros = "0.15"

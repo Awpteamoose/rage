@@ -8,10 +8,7 @@ use std::{
 	collections::{HashMap, HashSet},
 };
 use stdweb::{
-	__internal_console_unsafe,
-	__js_raw_asm,
 	_js_impl,
-	console,
 	js,
 	traits::*,
 	unstable::{TryFrom, TryInto},

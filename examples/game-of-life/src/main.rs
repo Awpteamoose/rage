@@ -1,68 +1,36 @@
-#![deny(
-	rust_2018_idioms,
-	unused_must_use, // warn by default
-)]
+#![deny(rust_2018_idioms, unused_must_use)]
 #![warn(
-	clippy::clippy,
-	clippy::clippy_pedantic,
-	clippy::clippy_style,
-	clippy::clippy_complexity,
-	clippy::clippy_perf,
-	clippy::clippy_correctness,
-
-	// specific lints
-	// Restriction (all of Restrictio is Allow)
+	clippy::pedantic,
+	clippy::style,
+	clippy::complexity,
+	clippy::perf,
+	clippy::correctness,
 	clippy::clone_on_ref_ptr,
 	clippy::float_cmp_const,
 	clippy::option_unwrap_used,
 	clippy::result_unwrap_used,
 	clippy::wrong_pub_self_convention,
 	clippy::shadow_reuse,
-
-	// Pedantic (these are Allow in Pedantic)
-	clippy::empty_enum,
-	clippy::enum_glob_use,
-	clippy::if_not_else,
-	clippy::items_after_statements,
-	clippy::mut_mut,
-	clippy::needless_continue,
-	clippy::pub_enum_variant_names,
-	clippy::replace_consts,
-	clippy::result_map_unwrap_or_else,
-	clippy::stutter,
-	clippy::use_self,
-	clippy::shadow_unrelated,
-
-	// default rust lints that are Allow
-	// https://doc.rust-lang.org/nightly/rustc/lints/listing/allowed-by-default.html
+	clippy::missing_const_for_fn,
 	anonymous_parameters,
 	bare_trait_objects,
-	missing_debug_implementations,
+	missing_copy_implementations,
 	trivial_casts,
 	trivial_numeric_casts,
-	unreachable_pub,
 	unused_extern_crates,
 	unused_import_braces,
 	unused_qualifications,
-	unused_results,
+	unused_results
 )]
-#![cfg_attr(not(debug_assertions), warn(
-	// Restriction
-	clippy::use_debug,
-	clippy::print_stdout,
-	clippy::unimplemented,
-))]
-#![recursion_limit = "128"]
-#![allow(unreachable_pub)]
-#![feature(try_from, try_trait, never_type)]
+#![cfg_attr(
+	not(debug_assertions),
+	warn(clippy::use_debug, clippy::print_stdout, clippy::unimplemented)
+)]
 
 #[macro_export]
 macro_rules! println {
 	($($arg: tt),+$(,)*) => {
 		use rage::stdweb::{
-			__internal_console_unsafe,
-			__js_raw_asm,
-			_js_impl,
 			console,
 			js,
 		};
@@ -75,9 +43,6 @@ macro_rules! println {
 macro_rules! eprintln {
 	($($arg: tt),+$(,)*) => {
 		use rage::stdweb::{
-			__internal_console_unsafe,
-			__js_raw_asm,
-			_js_impl,
 			console,
 			js,
 		};
@@ -93,7 +58,7 @@ use maplit::*;
 use rage::{
 	cmp::*,
 	primitives::html as primitives,
-	stdweb::{self, __internal_console_unsafe, __js_raw_asm, _js_impl, console, js, traits::*, unstable::TryFrom, web::event},
+	stdweb::{self, __internal_console_unsafe, _js_impl, console, js, traits::*, unstable::TryFrom, web::event},
 	styled,
 	vdom::{self, Element},
 	Tracked,
@@ -183,7 +148,6 @@ fn neighbours(cells: &Cells, point: Cell, s: u32) -> Vec<Cell> {
 pub struct State {
 	running: bool,
 	grid_size: u32,
-	rng: RefCell<SmallRng>,
 	cells: Cells,
 }
 
@@ -192,15 +156,6 @@ impl Default for State {
 		Self {
 			running: false,
 			grid_size: 75,
-			rng: {
-				let mut bytes: [u8; 16] = [0; 16];
-				let seed: [u8; 8] = unsafe { std::mem::transmute(stdweb::web::Date::new().get_time()) };
-				for (index, byte) in seed.iter().enumerate() {
-					bytes[index] = *byte;
-					bytes[index + 8] = *byte;
-				}
-				RefCell::new(rand::rngs::SmallRng::from_seed(bytes))
-			},
 			cells: Cells::default(),
 		}
 	}
@@ -264,7 +219,7 @@ fn randomize_button(state: &Tracked<State>) -> Element {
 
 				for x in 0..grid_size {
 					for y in 0..grid_size {
-						if state.rng.borrow_mut().gen_bool(0.5) {
+						if thread_rng().gen_bool(0.5) {
 							let _ = state.cells.insert(ToroidalPoint(x, y));
 						} else {
 							let _ = state.cells.remove(&ToroidalPoint(x, y));
@@ -405,7 +360,7 @@ fn main() {
 
 		for x in 0..grid_size {
 			for y in 0..grid_size {
-				if state.rng.borrow_mut().gen_bool(0.5) {
+				if thread_rng().gen_bool(0.5) {
 					let _ = state.cells.insert(ToroidalPoint(x, y));
 				} else {
 					let _ = state.cells.remove(&ToroidalPoint(x, y));

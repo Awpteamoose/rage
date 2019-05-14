@@ -11,7 +11,7 @@ use std::{
 	ops::{Deref, DerefMut},
 	rc::Rc,
 };
-use stdweb::{__internal_console_unsafe, __js_raw_asm, _js_impl, console, js};
+use stdweb::{console, js};
 
 #[allow(missing_debug_implementations)]
 pub struct State {
@@ -30,6 +30,7 @@ thread_local! {
 
 #[derive(Debug, Default)]
 pub struct Tracked<T>(Rc<RefCell<T>>);
+
 impl<T> Tracked<T> {
 	pub fn new(state: T) -> Self {
 		Tracked(Rc::new(RefCell::new(state)))
